@@ -3,14 +3,21 @@ import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import logo from "../../assets/images/logo.jpg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faUser, faChalkboardUser } from "@fortawesome/free-solid-svg-icons";
+import { faUser, faSearch, faEnvelope, faShoppingCart, faBell, faBars, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
 import { authService } from "../../api/auth.service";
 
-function Navbar(props) {
-    const value = props.page;
+function Navbar() {
     const navigate = useNavigate();
-    const [isAuthenticated, setIsAuthenticated] = useState(authService.isUserAuthenticated());
+    const [isAuthenticated,] = useState(authService.isUserAuthenticated());
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const getHomePath = () => {
+        const role = localStorage.getItem("role");
+        if (role === "ROLE_INSTRUCTOR") return "/teacher-home";
+        if (role === "ROLE_TEACHING_ASSISTANT") return "/teaching-assistant-home";
+        if (role === "ROLE_ADMIN") return "/admin";
+        return "/home";
+    };
 
     const handleLogOut = async () => {
         await authService.logout();
@@ -27,136 +34,106 @@ function Navbar(props) {
 
     return (
         <div>
-            <nav className="bg-white w-full flex flex-row justify-between items-center px-[4vw] shadow-[2px_2px_10px_rgba(0,0,0,0.15)] z-[999]">
-                <div className="flex items-center justify-center">
-                    <img src={logo} alt="" className="w-[300px] h-[65px] cursor-pointer" />
-                </div>
-                <div className="flex">
-                    <div id="menu-btn" className="hidden">
-                        <div className="menu-dash" onClick={toggleMobileMenu}>
-                            &#9776;
+            <nav className="bg-white/95 backdrop-blur sticky top-0 w-full shadow-[0_2px_10px_rgba(0,0,0,0.08)] z-[999]">
+                {/* Top bar */}
+                <div className="max-w-7xl mx-auto px-4 lg:px-8 py-3 flex items-center gap-4">
+                    <div className="flex items-center">
+                        <img src={logo} alt="Logo" className="h-20 w-auto cursor-pointer" onClick={() => navigate(getHomePath())} />
+                    </div>
+                    {/* Center search (desktop) */}
+                    <div className="hidden md:block flex-1 max-w-xl mx-auto">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Tìm kiếm khóa học, chủ đề, giảng viên..."
+                                className="w-full bg-gray-100 rounded-lg pl-4 pr-10 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                            />
+                            <FontAwesomeIcon icon={faSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         </div>
                     </div>
-                    <i
-                        id="menu-close"
-                        className="fas fa-times hidden"
-                        onClick={closeMobileMenu}
-                    ></i>
-                    <ul className={`flex justify-end items-center ${isMobileMenuOpen ? "active" : ""}`}>
-                        {isMobileMenuOpen && (
-                            <li className="close-button">
-                                <button onClick={closeMobileMenu}>X</button>
-                            </li>
-                        )}
-                        {value === "home" ? (
-                            <li className="list-none ml-5 rounded-[5px] bg-gradient-to-r from-blue-600 to-purple-600">
-                                <Link
-                                    to={"/"}
-                                    className="no-underline text-white text-[17px] font-bold transition-all duration-300 ease-in-out px-[10px] py-[2px] block hover:text-yellow-400"
-                                >
-                                    Home
-                                </Link>
-                            </li>
-                        ) : (
-                            <li className="list-none ml-5">
-                                <Link
-                                    to={"/"}
-                                    className="no-underline text-[rgb(21,21,100)] text-[17px] font-bold transition-all duration-300 ease-in-out hover:text-yellow-400"
-                                >
-                                    Home
-                                </Link>
-                            </li>
-                        )}
-                        {value === "courses" ? (
-                            <li className="list-none ml-5 rounded-[5px] bg-gradient-to-r from-blue-600 to-purple-600">
-                                <Link
-                                    to={"/courses"}
-                                    className="no-underline text-white text-[17px] font-bold transition-all duration-300 ease-in-out px-[10px] py-[2px] block hover:text-yellow-400"
-                                >
-                                    Courses
-                                </Link>
-                            </li>
-                        ) : (
-                            <li className="list-none ml-5">
-                                <Link
-                                    to={"/courses"}
-                                    className="no-underline text-[rgb(21,21,100)] text-[17px] font-bold transition-all duration-300 ease-in-out hover:text-yellow-400"
-                                >
-                                    Courses
-                                </Link>
-                            </li>
-                        )}
+
+                    {/* Right icons */}
+                    <div className="ml-auto hidden md:flex items-center gap-3">
+                        <button className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center hover:bg-indigo-100" aria-label="Liên hệ">
+                            <FontAwesomeIcon icon={faEnvelope} />
+                        </button>
+                        <button className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center hover:bg-indigo-100" aria-label="Giỏ hàng">
+                            <FontAwesomeIcon icon={faShoppingCart} />
+                        </button>
+                        <button className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center hover:bg-indigo-100" aria-label="Thông báo">
+                            <FontAwesomeIcon icon={faBell} />
+                        </button>
                         {isAuthenticated ? (
-                            value === "profile" ? (
-                                <li className="list-none ml-5 rounded-[5px] bg-gradient-to-r from-blue-600 to-purple-600">
-                                    <Link
-                                        to={"/profile"}
-                                        className="no-underline text-white text-[17px] font-bold transition-all duration-300 ease-in-out px-[10px] py-[2px] block hover:text-yellow-400"
-                                    >
-                                        Profile
-                                        <FontAwesomeIcon icon={faUser} className="ml-1" />
-                                    </Link>
-                                </li>
-                            ) : (
-                                <li className="list-none ml-5">
-                                    <Link
-                                        to={"/profile"}
-                                        className="no-underline text-[rgb(21,21,100)] text-[17px] font-bold transition-all duration-300 ease-in-out hover:text-yellow-400"
-                                    >
-                                        Profile
-                                        <FontAwesomeIcon icon={faUser} className="ml-1" />
-                                    </Link>
-                                </li>
-                            )
-                        ) : (
-                            <></>
-                        )}
-                        {isAuthenticated ? (
-                            value === "learnings" ? (
-                                <li className="list-none ml-5 rounded-[5px] bg-gradient-to-r from-blue-600 to-purple-600">
-                                    <Link
-                                        to={"/learnings"}
-                                        className="no-underline text-white text-[17px] font-bold transition-all duration-300 ease-in-out px-[10px] py-[2px] block hover:text-yellow-400"
-                                    >
-                                        Learnings
-                                        <FontAwesomeIcon icon={faChalkboardUser} className="ml-1" />
-                                    </Link>
-                                </li>
-                            ) : (
-                                <li className="list-none ml-5">
-                                    <Link
-                                        to={"/learnings"}
-                                        className="no-underline text-[rgb(21,21,100)] text-[17px] font-bold transition-all duration-300 ease-in-out hover:text-yellow-400"
-                                    >
-                                        Learnings
-                                        <FontAwesomeIcon icon={faChalkboardUser} className="ml-1" />
-                                    </Link>
-                                </li>
-                            )
-                        ) : (
-                            <></>
-                        )}
-                        {isAuthenticated ? (
-                            <li className="list-none ml-5">
+                            <>
+                                <button
+                                    onClick={() => navigate("/profile")}
+                                    className="w-9 h-9 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center hover:bg-gray-300"
+                                    aria-label="Hồ sơ"
+                                >
+                                    <FontAwesomeIcon icon={faUser} />
+                                </button>
                                 <button
                                     onClick={handleLogOut}
-                                    className="w-[120px] h-[35px] p-[1px] mb-[1px] bg-[#0047ca] border-none rounded-lg text-[rgb(250,250,250)] text-[15px] font-medium cursor-pointer transition-all duration-300 ease-in-out hover:bg-[#002c5fe1]"
+                                    className="w-9 h-9 rounded-full bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100"
+                                    aria-label="Đăng xuất"
                                 >
-                                    Sign Out
+                                    <FontAwesomeIcon icon={faRightFromBracket} />
                                 </button>
-                            </li>
+                            </>
                         ) : (
-                            <li className="list-none ml-5">
-                                <button
-                                    onClick={() => navigate("/login")}
-                                    className="w-[120px] h-[35px] p-[1px] mb-[1px] bg-[#0047ca] border-none rounded-lg text-[rgb(250,250,250)] text-[15px] font-medium cursor-pointer transition-all duration-300 ease-in-out hover:bg-[#002c5fe1]"
-                                >
-                                    Login/SignUp
-                                </button>
-                            </li>
+                            <>
+                                <button onClick={() => navigate("/login")} className="px-3 py-2 rounded-md border text-gray-700 hover:bg-gray-50">Đăng nhập</button>
+                                <button onClick={() => navigate("/register")} className="px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Đăng ký</button>
+                            </>
                         )}
-                    </ul>
+                    </div>
+
+                    {/* mobile menu toggle */}
+                    <button className="md:hidden ml-auto text-gray-700" onClick={toggleMobileMenu}>
+                        <FontAwesomeIcon icon={faBars} />
+                    </button>
                 </div>
+
+
+                {/* Search bar strip removed as search moved to center */}
+
+                {/* Mobile dropdown content */}
+                {isMobileMenuOpen && (
+                    <div className="md:hidden border-t bg-white px-4 pb-4">
+                        <div className="relative my-3">
+                            <input
+                                type="text"
+                                placeholder="Tìm kiếm khóa học"
+                                className="w-full bg-gray-100 rounded-lg pl-4 pr-10 py-2 outline-none"
+                            />
+                            <FontAwesomeIcon icon={faSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        </div>
+                        <div className="flex gap-3 mb-3">
+                            {isAuthenticated ? (
+                                <>
+                                    <button onClick={() => { closeMobileMenu(); navigate("/profile"); }} className="flex-1 px-4 py-2 rounded-md border">Hồ sơ</button>
+                                    <button onClick={handleLogOut} className="flex-1 px-4 py-2 rounded-md bg-indigo-600 text-white">Đăng xuất</button>
+                                </>
+                            ) : (
+                                <>
+                                    <button onClick={() => { closeMobileMenu(); navigate("/login"); }} className="flex-1 px-4 py-2 rounded-md border">Đăng Nhập</button>
+                                    <button onClick={() => { closeMobileMenu(); navigate("/register"); }} className="flex-1 px-4 py-2 rounded-md bg-[#ff9f0a] text-white">Đăng Ký</button>
+                                </>
+                            )}
+                        </div>
+                        <ul className="grid grid-cols-2 gap-3 text-sm text-gray-700">
+                            <li><Link to="#" onClick={closeMobileMenu}>Giới thiệu</Link></li>
+                            <li><Link to="#" onClick={closeMobileMenu}>Giáo viên</Link></li>
+                            <li><Link to="#" onClick={closeMobileMenu}>Phòng luyện</Link></li>
+                            <li><Link to="#" onClick={closeMobileMenu}>iChat - Hỏi đáp với AI</Link></li>
+                            <li><Link to="#" onClick={closeMobileMenu}>Hướng nghiệp</Link></li>
+                            <li><Link to="#" onClick={closeMobileMenu}>Thư viện</Link></li>
+                            <li><Link to="#" onClick={closeMobileMenu}>Hướng dẫn Đăng ký học</Link></li>
+                            <li><Link to="#" onClick={closeMobileMenu}>Hỗ trợ</Link></li>
+                            <li><Link to="#" onClick={closeMobileMenu}>Tra cứu Tuyển sinh 2025</Link></li>
+                        </ul>
+                    </div>
+                )}
             </nav>
         </div>
     );
