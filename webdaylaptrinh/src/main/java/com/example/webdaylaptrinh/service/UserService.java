@@ -50,6 +50,15 @@ public User updateUser(UUID id, User updatedUser) {
         existingUser.setProfession(updatedUser.getProfession());
         existingUser.setLinkedin_url(updatedUser.getLinkedin_url());
         existingUser.setGithub_url(updatedUser.getGithub_url());
+        if (updatedUser.getRole() != null) {
+            existingUser.setRole(updatedUser.getRole());
+        }
+        if (updatedUser.getIsActive() != null) {
+            existingUser.setIsActive(updatedUser.getIsActive());
+        }
+        if (updatedUser.getPassword() != null && !updatedUser.getPassword().isEmpty()) {
+            existingUser.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
+        }
         return userRepository.save(existingUser);
     }
     return null;

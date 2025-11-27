@@ -53,22 +53,11 @@ public class LearningService {
         Course course = courseRepository.findById(enrollRequest.getCourseId()).orElse(null);
 
         if (user != null && course != null) {
-            Learning existingLearning = learningRepository.findByUserAndCourse(user, course);
-            if (existingLearning != null) {
-                return "Course already enrolled";
+            Learning learning = enrollUserInCourse(user, course);
+            if (learning != null) {
+                return "Enrolled successfully";
             }
-
-            Progress progress = new Progress();
-            progress.setUser(user);
-            progress.setCourse(course);
-            progressRepository.save(progress);
-
-            Learning learning = new Learning();
-            learning.setUser(user);
-            learning.setCourse(course);
-            learningRepository.save(learning);
-
-            return "Enrolled successfully";
+            return "Course already enrolled";
         }
 
         return "Failed to enroll";
@@ -77,5 +66,26 @@ public class LearningService {
 
     public void unenrollCourse(UUID id) {
         learningRepository.deleteById(id);
+    }
+
+    public Learning enrollUserInCourse(User user, Course course) {
+        Learning existingLearning = learningRepository.findByUserAndCourse(user, course);
+        if (existingLearning != null) {
+            return null;
+        }
+
+        Progress progress = new Progress();
+        progress.setUser(user);
+        progress.setCourse(course);
+        progressRepository.save(progress);
+
+        Learning learning = new Learning();
+        learning.setUser(user);
+        learning.setCourse(course);
+        return learningRepository.save(learning);
+    }
+
+    public boolean isUserEnrolled(User user, Course course) {
+        return learningRepository.findByUserAndCourse(user, course) != null;
     }
 }

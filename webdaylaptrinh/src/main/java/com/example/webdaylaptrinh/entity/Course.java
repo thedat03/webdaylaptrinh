@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.*;
@@ -11,11 +12,13 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.GenericGenerator;
+import jakarta.persistence.OrderBy;
 
 @Entity
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonIgnoreProperties({"modules", "feedbacks", "questions", "hibernateLazyInitializer", "handler"})
 public class Course {
 
     @Id
@@ -37,6 +40,13 @@ public class Course {
 
     private String y_link;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "category_id")
+    private Category category;
+
+    @Column(length = 255)
+    private String tags; // optional comma-separated labels
+
     @OneToMany(mappedBy = "course", cascade = CascadeType.ALL)
     @JsonIgnore
     private List<Feedback> feedbacks;
@@ -44,4 +54,9 @@ public class Course {
     @OneToMany(mappedBy = "course")
     @JsonIgnore
     private List<Questions> questions;
+
+    @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("position ASC")
+    @JsonIgnore
+    private List<CourseModule> modules;
 }

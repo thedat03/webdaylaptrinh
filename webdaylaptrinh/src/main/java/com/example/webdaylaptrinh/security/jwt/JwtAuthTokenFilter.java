@@ -47,7 +47,6 @@ public class JwtAuthTokenFilter extends OncePerRequestFilter {
             }
         } catch (Exception e) {
             log.error("Cannot set user authentication: {}", e.getMessage());
-
             response.setContentType("application/json");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
@@ -58,7 +57,7 @@ public class JwtAuthTokenFilter extends OncePerRequestFilter {
             body.put("path", request.getRequestURI());
 
             new ObjectMapper().writeValue(response.getOutputStream(), body);
-            return; // dừng filter chain nếu token không hợp lệ
+            return;
         }
 
         filterChain.doFilter(request, response);

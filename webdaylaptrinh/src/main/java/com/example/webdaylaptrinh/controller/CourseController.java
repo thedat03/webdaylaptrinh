@@ -18,8 +18,9 @@ public class CourseController {
     private CourseService courseService;
 
     @GetMapping
-    public List<Course> getAllCourses() {
-        return courseService.getAllCourses();
+    public List<Course> getAllCourses(@RequestParam(value = "category", required = false) String category,
+                                      @RequestParam(value = "free", required = false) Boolean free) {
+        return courseService.getAllCoursesFiltered(category, free);
     }
 
     @GetMapping("/{id}")

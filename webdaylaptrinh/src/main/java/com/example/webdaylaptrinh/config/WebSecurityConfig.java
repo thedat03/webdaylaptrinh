@@ -51,21 +51,55 @@ public class WebSecurityConfig {
                         // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-
+                        .requestMatchers("/api/payments/vnpay-return", "/api/payments/vnpay-ipn").permitAll()
+                        
                         // Courses
                         .requestMatchers(HttpMethod.GET, "/api/courses/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/files/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/news/**").permitAll()
 
-                        .requestMatchers(HttpMethod.POST, "/api/courses/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/courses/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/courses/**").hasAnyRole("ADMIN", "INSTRUCTOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/courses/**").hasAnyRole("ADMIN", "INSTRUCTOR")
                         .requestMatchers(HttpMethod.DELETE, "/api/courses/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/files/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/banners/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/banners/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/banners/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/news/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/news/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/news/**").hasRole("ADMIN")
 
                         // Assessments, Enrollments, Feedback, Learning, Progress
-                        .requestMatchers("/api/assessments/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/feedbacks/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/learning/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/progress/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/questions/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/payments/user/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/payments").hasAnyRole("ADMIN", "INSTRUCTOR")
+
+                        .requestMatchers("/api/assessments/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers("/api/feedbacks/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers("/api/learning/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers("/api/progress/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers("/api/questions/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        
+                        // Comments - GET public, POST/PUT/DELETE authenticated
+                        // Admin endpoints - đặt trước pattern tổng quát
+                        .requestMatchers(HttpMethod.GET, "/api/comments/all").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/comments/pending").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/comments/lesson/*/all").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/comments/course/*/all").hasRole("ADMIN")
+                        // Public GET endpoints
+                        .requestMatchers(HttpMethod.GET, "/api/comments/lesson/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/comments/course/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/comments/*/replies").permitAll()
+                        // Authenticated POST/PUT/DELETE
+                        .requestMatchers(HttpMethod.POST, "/api/comments").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.PUT, "/api/comments/*").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.DELETE, "/api/comments/*").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
 
                         .anyRequest().authenticated()
                 )
@@ -77,7 +111,7 @@ public class WebSecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://127.0.0.1:3000"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "192.160.16.100"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
