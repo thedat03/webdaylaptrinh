@@ -19,9 +19,10 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-async function getAllCourses() {
+async function getAllCourses(includePending = false) {
     try {
-        const { data } = await api.get("/api/courses");
+        const params = includePending ? { admin: true } : {};
+        const { data } = await api.get("/api/courses", { params });
         return { success: true, data };
     } catch (error) {
         console.error("Error fetching courses:", error);
@@ -123,6 +124,16 @@ async function updateUser(userId, updatedData) {
     }
 }
 
+async function deleteUser(userId) {
+    try {
+        await api.delete(`/api/users/${userId}`);
+        return { success: true };
+    } catch (err) {
+        console.error("Error deleting user:", err);
+        return { success: false, error: err.response?.data?.message || "Unable to delete user" };
+    }
+}
+
 async function createQuestion(questionData) {
     try {
         const { data } = await api.post("/api/questions", questionData);
@@ -153,6 +164,26 @@ async function deleteQuestion(questionId) {
     }
 }
 
+async function approveCourse(courseId) {
+    try {
+        const { data } = await api.put(`/api/courses/${courseId}/approve`);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error approving course:", error);
+        return { success: false, error: error.response?.data?.message || "Could not approve course" };
+    }
+}
+
+async function rejectCourse(courseId) {
+    try {
+        const { data } = await api.put(`/api/courses/${courseId}/reject`);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error rejecting course:", error);
+        return { success: false, error: error.response?.data?.message || "Could not reject course" };
+    }
+}
+
 export const adminService = {
     getAllCourses,
     getCourseById,
@@ -166,5 +197,8 @@ export const adminService = {
     getAllUsers,
     createUser,
     updateUser,
+    deleteUser,
     getAllLearning,
+    approveCourse,
+    rejectCourse,
 };

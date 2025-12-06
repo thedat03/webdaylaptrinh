@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Courses from "./DCourses";
 import Dashboard from "./Dashboard";
 import SideBar from "./SideBar";
@@ -7,15 +8,23 @@ import CategoryManagement from "./CategoryManagement";
 import BannerManagement from "./BannerManagement";
 import NewsManagement from "./NewsManagement";
 import CommentManagement from "./CommentManagement";
+import PaymentManagement from "./PaymentManagement";
+import AdminCourseReview from "./AdminCourseReview";
 import { authService } from "../../api/auth.service";
 
 
 function AdminDashboard() {
+    const navigate = useNavigate();
     const [current, setCurrent] = useState("dashboard");
     const [isAuthenticated, setIsAuthenticated] = useState(authService.isAdminAuthenticated());
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+
+    const handleLogout = async () => {
+        await authService.logout();
+        navigate("/login");
+    };
 
     const renderContent = () => {
         switch (current) {
@@ -24,7 +33,7 @@ function AdminDashboard() {
             case "user":
                 return <Users />;
             case "courses":
-                return <Courses />;
+                return <AdminCourseReview />;
             case "categories":
                 return <CategoryManagement />;
             case "banners":
@@ -33,6 +42,8 @@ function AdminDashboard() {
                 return <NewsManagement />;
             case "comments":
                 return <CommentManagement />;
+            case "payments":
+                return <PaymentManagement />;
             default:
                 return <Dashboard isAuthenticated={isAuthenticated} />;
         }
@@ -55,15 +66,15 @@ function AdminDashboard() {
     };
 
     return (
-        <div className="flex min-h-screen">
-            <SideBar current={current} onSelect={setCurrent} />
-            <section className="flex-1 bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-100 transition-all duration-300">
-                <main className="p-8 font-poppins">{renderContent()}</main>
+        <div className="flex min-h-screen overflow-hidden">
+            <SideBar current={current} onSelect={setCurrent} onLogout={handleLogout} />
+            <section className="flex-1 bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-100 transition-all duration-300 overflow-x-hidden">
+                <main className="p-4 md:p-6 lg:p-8 font-poppins max-w-full overflow-x-hidden">{renderContent()}</main>
             </section>
 
             {!isAuthenticated && (
-                <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-lg z-50">
-                    <div className="bg-white/40 backdrop-blur-xl rounded-3xl shadow-2xl p-10 w-full max-w-md border border-white/30">
+                <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-lg z-50 overflow-y-auto">
+                    <div className="bg-white/40 backdrop-blur-xl rounded-3xl shadow-2xl p-6 md:p-10 w-full max-w-md mx-4 border border-white/30">
                         <h2 className="text-3xl font-extrabold text-center text-white mb-6 drop-shadow">
                             Đăng nhập quản trị
                         </h2>

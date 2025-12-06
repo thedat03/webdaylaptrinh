@@ -5,7 +5,9 @@ import com.example.webdaylaptrinh.entity.Payment;
 import com.example.webdaylaptrinh.entity.User;
 import com.example.webdaylaptrinh.enums.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,4 +41,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
             ORDER BY p.createdAt DESC
             """)
     List<PaymentAdminView> findAdminPaymentViews();
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM Payment p WHERE p.course.course_id = :courseId")
+    void deleteByCourseId(@Param("courseId") UUID courseId);
 }

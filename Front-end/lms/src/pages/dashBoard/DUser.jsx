@@ -15,10 +15,11 @@ import {
     Col,
     Card
 } from "antd";
-import { EyeOutlined, EditOutlined, UserOutlined, PlusOutlined } from "@ant-design/icons";
+import { EyeOutlined, EditOutlined, UserOutlined, PlusOutlined, DeleteOutlined, ExclamationCircleOutlined } from "@ant-design/icons";
 import { adminService } from "../../api/admin.service";
 
 const { Option } = Select;
+const { confirm } = Modal;
 
 function Users() {
     const [users, setUsers] = useState([]);
@@ -87,6 +88,36 @@ function Users() {
         } catch {
             message.error("Lỗi khi cập nhật người dùng");
         }
+    };
+
+    const handleDeleteUser = async (user) => {
+        confirm({
+            title: "Xóa người dùng",
+            icon: <ExclamationCircleOutlined />,
+            content: `Bạn có chắc muốn xóa tài khoản "${user.username}"? Hành động này không thể hoàn tác.`,
+            okText: "Xóa",
+            okType: "danger",
+            cancelText: "Hủy",
+            centered: true,
+            async onOk() {
+                try {
+                    const res = await adminService.deleteUser(user.id);
+                    if (res.success) {
+                        message.success("Xóa người dùng thành công");
+                        // Nếu đang xem chi tiết của user vừa bị xóa thì đóng modal
+                        if (selectedUser && selectedUser.id === user.id) {
+                            setViewModalVisible(false);
+                            setSelectedUser(null);
+                        }
+                        fetchUsers();
+                    } else {
+                        message.error(res.error || "Xóa người dùng thất bại");
+                    }
+                } catch {
+                    message.error("Lỗi khi xóa người dùng");
+                }
+            },
+        });
     };
 
     const handleCreate = () => {
@@ -180,7 +211,7 @@ function Users() {
         {
             title: "Hành động",
             key: "actions",
-            width: 120,
+            width: 180,
             render: (_, record) => (
                 <Space>
                     <Button
@@ -200,13 +231,21 @@ function Users() {
                     >
                         Sửa
                     </Button>
+                    <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleDeleteUser(record)}
+                        size="small"
+                    >
+                        Xóa
+                    </Button>
                 </Space>
             ),
         },
     ];
 
     return (
-        <>
+        <div className="w-full max-w-full overflow-x-hidden">
             <div className="mb-8 flex justify-between items-center">
                 <div>
                     <h3 className="text-3xl font-bold text-slate-800 tracking-tight">
@@ -227,7 +266,7 @@ function Users() {
                 </Button>
             </div>
 
-            <Card className="shadow-xl">
+            <Card className="shadow-xl overflow-x-auto">
                 <Table
                     columns={columns}
                     dataSource={users}
@@ -239,7 +278,7 @@ function Users() {
                         showQuickJumper: true,
                         showTotal: (total) => `Tổng ${total} người dùng`,
                     }}
-                    scroll={{ x: 1200 }}
+                    scroll={{ x: 'max-content' }}
                 />
             </Card>
 
@@ -253,7 +292,8 @@ function Users() {
                         Đóng
                     </Button>,
                 ]}
-                width={800}
+                width="90%"
+                style={{ maxWidth: 800 }}
             >
                 {selectedUser && (
                     <div>
@@ -356,7 +396,8 @@ function Users() {
                 open={editModalVisible}
                 onCancel={() => setEditModalVisible(false)}
                 footer={null}
-                width={700}
+                width="90%"
+                style={{ maxWidth: 700 }}
             >
                 <Form
                     form={editForm}
@@ -487,7 +528,8 @@ function Users() {
                 open={createModalVisible}
                 onCancel={() => setCreateModalVisible(false)}
                 footer={null}
-                width={700}
+                width="90%"
+                style={{ maxWidth: 700 }}
             >
                 <Form
                     form={createForm}
@@ -631,7 +673,7 @@ function Users() {
                     </Form.Item>
                 </Form>
             </Modal>
-        </>
+        </div>
     );
 }
 

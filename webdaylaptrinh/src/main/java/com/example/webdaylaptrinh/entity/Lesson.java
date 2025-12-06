@@ -43,6 +43,12 @@ public class Lesson {
 
     @Column(name = "position_index")
     private int position;
+
+    // Judge0 integration fields
+    private Integer codeLanguageId; // Judge0 language ID
+
+    @Column(length = 20000)
+    private String codeTestCases; // JSON array of test cases
 }
 
 

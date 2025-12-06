@@ -20,6 +20,7 @@ import Certificate from './pages/assessment/certificate';
 import Forum from './pages/course/forum';
 import AdminDashboard from './pages/dashBoard/AdminDashboard';
 import LessonViewer from './pages/learning/LessonViewer';
+import PaymentResult from './pages/payment/PaymentResult';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
           <Route path='/profile' element={<Profile />} />
           <Route path='/Learnings' element={<Learnings />} />
           <Route path='/lesson/:lessonId' element={<LessonViewer />} />
+          <Route path='/payment-result' element={<PaymentResult />} />
           <Route path='/Dcourses' element={<DCourses />} />
           <Route path='/Performance' element={<Performance />} />
           <Route path='*' element={<ErrorPage />} />

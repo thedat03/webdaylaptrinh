@@ -189,7 +189,7 @@ function Courses() {
     const openDeleteLesson = (lesson) => setDeleteModal2({ isOpen: true, item: lesson, itemType: "Bài học", title: "Xóa bài học", description: "Bạn có chắc muốn xóa bài học này:", onDelete: async (l) => await courseService.deleteLesson(l.lesson_id) });
 
     return (
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full max-w-full overflow-x-hidden">
             {selectedCourseId ? (
                 <AddQuestion courseId={selectedCourseId} onBack={() => setSelectedCourseId(null)} />
             ) : (
@@ -236,7 +236,7 @@ function Courses() {
                             <div className="grid gap-4">
                                 {Array.isArray(courses) && courses.map((course) => (
                                     <div key={course.course_id} className="group bg-white border border-gray-200 rounded-xl hover:shadow-lg hover:border-blue-200 transition-all duration-300 overflow-hidden" >
-                                        <div className="p-6 flex items-start justify-between">
+                                        <div className="p-4 md:p-6 flex items-start justify-between gap-4 overflow-x-auto">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-3 mb-3">
                                                     <h3 className="text-xl font-bold text-gray-900 truncate"> {course.course_name} </h3>

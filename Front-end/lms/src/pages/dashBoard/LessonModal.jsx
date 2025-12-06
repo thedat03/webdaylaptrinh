@@ -1,7 +1,16 @@
 import { Modal, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
+import { JUDGE0_LANGUAGES } from "../../constants/judge0Languages";
 
 const TYPES = ["VIDEO", "CODE", "HOMEWORK", "MATERIAL", "QUIZ"];
+
+const buildTestCase = (index) => ({
+    id: index,
+    name: `Test ${index}`,
+    stdin: "",
+    expectedOutput: "",
+    hidden: false,
+});
 
 function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], defaultModuleId = null, onClose, onSubmit }) {
     const isEdit = mode === "edit";
@@ -17,6 +26,8 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
         options: ["", "", ""],
         correctAnswer: 0
     });
+    const [codeLanguageId, setCodeLanguageId] = useState(JUDGE0_LANGUAGES[0].id);
+    const [codeTestCases, setCodeTestCases] = useState([buildTestCase(1)]);
 
     useEffect(() => {
         setTitle(initialData?.title || "");
@@ -35,9 +46,48 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
         } else {
             setQuizData({ question: "", options: ["", "", ""], correctAnswer: 0 });
         }
+        setCodeLanguageId(initialData?.codeLanguageId || JUDGE0_LANGUAGES[0].id);
+        if (initialData?.codeTestCases) {
+            try {
+                const parsed = JSON.parse(initialData.codeTestCases);
+                if (Array.isArray(parsed) && parsed.length) {
+                    setCodeTestCases(parsed.map((tc, idx) => ({
+                        id: idx + 1,
+                        name: tc.name || `Test ${idx + 1}`,
+                        stdin: tc.stdin || "",
+                        expectedOutput: tc.expectedOutput || "",
+                        hidden: Boolean(tc.hidden),
+                    })));
+                } else {
+                    setCodeTestCases([buildTestCase(1)]);
+                }
+            } catch {
+                setCodeTestCases([buildTestCase(1)]);
+            }
+        } else {
+            setCodeTestCases([buildTestCase(1)]);
+        }
     }, [initialData, defaultModuleId, isOpen]);
 
     const moduleOptions = useMemo(() => modules.map(m => ({ value: m.module_id, label: `${m.position}. ${m.title}` })), [modules]);
+
+    const addTestCase = () => {
+        setCodeTestCases((prev) => [...prev, buildTestCase(prev.length + 1)]);
+    };
+
+    const removeTestCase = (id) => {
+        setCodeTestCases((prev) => {
+            if (prev.length === 1) {
+                message.warning("Cần ít nhất 1 test case");
+                return prev;
+            }
+            return prev.filter((tc) => tc.id !== id).map((tc, idx) => ({ ...tc, id: idx + 1 }));
+        });
+    };
+
+    const updateTestCase = (id, field, value) => {
+        setCodeTestCases((prev) => prev.map((tc) => (tc.id === id ? { ...tc, [field]: value } : tc)));
+    };
 
     const handleSubmit = async () => {
         if (!title.trim()) return message.error("Vui lòng nhập tiêu đề bài học");
@@ -48,7 +98,36 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
         if (type === "VIDEO") {
             payload = { ...base, contentUrl: contentUrl.trim(), description: description.trim() };
         } else if (type === "CODE") {
-            payload = { ...base, description: description.trim(), codeSnippet };
+            if (!codeLanguageId) {
+                return message.error("Vui lòng chọn ngôn ngữ Judge0");
+            }
+            if (!codeTestCases.length) {
+                return message.error("Vui lòng thêm ít nhất 1 test case");
+            }
+            let sanitizedCases = [];
+            try {
+                sanitizedCases = codeTestCases.map((tc) => {
+                    const expected = tc.expectedOutput?.trim();
+                    if (!expected) {
+                        throw new Error("Vui lòng nhập expected output cho tất cả test case");
+                    }
+                    return {
+                        name: tc.name?.trim() || "",
+                        stdin: tc.stdin || "",
+                        expectedOutput: expected,
+                        hidden: Boolean(tc.hidden),
+                    };
+                });
+            } catch (error) {
+                return message.error(error.message);
+            }
+            payload = {
+                ...base,
+                description: description.trim(),
+                codeSnippet,
+                codeLanguageId,
+                codeTestCases: JSON.stringify(sanitizedCases),
+            };
         } else if (type === "MATERIAL") {
             payload = { ...base, description: description.trim() };
         } else if (type === "HOMEWORK") {
@@ -63,7 +142,7 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
     };
 
     return (
-        <Modal open={isOpen} onCancel={onClose} footer={null} centered width={720} title={isEdit ? "Sửa bài học" : "Thêm bài học"}>
+        <Modal open={isOpen} onCancel={onClose} footer={null} centered width="90%" style={{ maxWidth: 720 }} title={isEdit ? "Sửa bài học" : "Thêm bài học"}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium mb-1">Tiêu đề</label>
@@ -101,14 +180,90 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
                 )}
 
                 {type === "CODE" && (
-                    <div className="md:col-span-2 space-y-3">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Yêu cầu / Mô tả</label>
-                            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border rounded-lg px-3 py-2 h-28" placeholder="EXPECT: /function\s+sum\(/" />
+                    <div className="md:col-span-2 space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Ngôn ngữ Judge0</label>
+                                <select
+                                    value={codeLanguageId}
+                                    onChange={(e) => setCodeLanguageId(Number(e.target.value))}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                >
+                                    {JUDGE0_LANGUAGES.map((lang) => (
+                                        <option key={lang.id} value={lang.id}>{lang.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Code snippet ban đầu</label>
+                                <textarea value={codeSnippet} onChange={(e) => setCodeSnippet(e.target.value)} className="w-full border rounded-lg px-3 py-2 h-32 font-mono text-sm" placeholder="// Viết mã ở đây" />
+                            </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium mb-1">Code snippet ban đầu</label>
-                            <textarea value={codeSnippet} onChange={(e) => setCodeSnippet(e.target.value)} className="w-full border rounded-lg px-3 py-2 h-40 font-mono text-sm" placeholder="// Viết mã ở đây" />
+                            <label className="block text-sm font-medium mb-1">Yêu cầu / Mô tả</label>
+                            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border rounded-lg px-3 py-2 h-28" placeholder="Mô tả đề bài, input/output..." />
+                        </div>
+                        <div className="border rounded-xl p-4 bg-gray-50">
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <p className="font-semibold text-gray-800">Test cases</p>
+                                    <p className="text-xs text-gray-500">Các test sẽ gửi tới Judge0</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={addTestCase}
+                                    className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                                >
+                                    + Thêm test
+                                </button>
+                            </div>
+                            <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+                                {codeTestCases.map((tc) => (
+                                    <div key={tc.id} className="bg-white rounded-lg border p-3 space-y-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <input
+                                                value={tc.name}
+                                                onChange={(e) => updateTestCase(tc.id, "name", e.target.value)}
+                                                className="flex-1 border rounded px-2 py-1 text-sm"
+                                                placeholder={`Test ${tc.id}`}
+                                            />
+                                            <label className="flex items-center gap-2 text-xs text-gray-600">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={tc.hidden}
+                                                    onChange={(e) => updateTestCase(tc.id, "hidden", e.target.checked)}
+                                                />
+                                                Hidden
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeTestCase(tc.id)}
+                                                className="text-red-500 text-sm"
+                                            >
+                                                Xóa
+                                            </button>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">Input (stdin)</label>
+                                            <textarea
+                                                value={tc.stdin}
+                                                onChange={(e) => updateTestCase(tc.id, "stdin", e.target.value)}
+                                                className="w-full border rounded px-2 py-1 text-sm h-16"
+                                                placeholder="Ví dụ: 3 4"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1">Expected output</label>
+                                            <textarea
+                                                value={tc.expectedOutput}
+                                                onChange={(e) => updateTestCase(tc.id, "expectedOutput", e.target.value)}
+                                                className="w-full border rounded px-2 py-1 text-sm h-16"
+                                                placeholder="Ví dụ: 7"
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )}

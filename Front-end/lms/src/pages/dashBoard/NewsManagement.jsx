@@ -33,7 +33,7 @@ function NewsManagement() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full max-w-full overflow-x-hidden">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-br from-indigo-100 to-purple-100">
                     <div>
@@ -71,7 +71,7 @@ function NewsManagement() {
                 </div>
             </div>
 
-            <Modal title={modal.mode === 'add' ? 'Thêm tin' : 'Sửa tin'} open={modal.open} onCancel={close} footer={null} width={700}>
+            <Modal title={modal.mode === 'add' ? 'Thêm tin' : 'Sửa tin'} open={modal.open} onCancel={close} footer={null} width="90%" style={{ maxWidth: 700 }}>
                 <Form form={form} layout="vertical" onFinish={submit}>
                     <Form.Item
                         label="Tiêu đề"

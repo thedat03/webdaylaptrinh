@@ -141,7 +141,7 @@ function BannerManagement() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full max-w-full overflow-x-hidden">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 <div className="px-8 py-6 border-b border-gray-100 bg-gradient-to-br from-indigo-100 to-purple-100">
                     <div className="flex items-center justify-between">
@@ -248,7 +248,8 @@ function BannerManagement() {
                 onCancel={closeBannerModal}
                 footer={null}
                 centered
-                width={600}
+                width="90%"
+                style={{ maxWidth: 600 }}
             >
                 <Form form={form} layout="vertical" onFinish={handleBannerSubmit}>
                     <Form.Item
@@ -292,7 +293,7 @@ function BannerManagement() {
                     <Form.Item label="Đường dẫn (không bắt buộc)" name="link_url">
                         <Input placeholder="https://example.com" />
                     </Form.Item>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Form.Item label="Thứ tự hiển thị" name="display_order" rules={[{ type: "number", min: 1 }]}>
                             <InputNumber className="w-full" placeholder="1" min={1} />
                         </Form.Item>

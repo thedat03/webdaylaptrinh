@@ -3,12 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useUserContext } from "../../contexts/User.Context";
 import Navbar from "../../Components/common/Navbar";
 import { authService } from "../../api/auth.service";
-import { Mail, Lock, LogIn } from "lucide-react";
+import { Mail, Lock, LogIn, User, GraduationCap, Shield } from "lucide-react";
 import { InputField } from "../../Components/common/InputFeild";
 
 function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [selectedRole, setSelectedRole] = useState(""); // "ROLE_STUDENT", "ROLE_INSTRUCTOR", "ROLE_ADMIN"
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
@@ -20,6 +21,12 @@ function Login() {
         setIsLoading(true);
         setError("");
 
+        if (!selectedRole) {
+            setError("Vui lòng chọn vai trò đăng nhập");
+            setIsLoading(false);
+            return;
+        }
+
         try {
             const result = await authService.login(email, password);
 
@@ -28,14 +35,40 @@ function Login() {
                     setUser(result.user);
                 }
                 const role = result.user?.role;
-                if (role === "ROLE_ADMIN") {
+
+                // Map role backend -> nhóm vai trò hiển thị
+                const isStudentRole = role === "ROLE_STUDENT" || role === "ROLE_USER";
+                const isInstructorRole = role === "ROLE_INSTRUCTOR";
+                const isAdminRole = role === "ROLE_ADMIN";
+
+                let match = false;
+                if (selectedRole === "ROLE_STUDENT") {
+                    match = isStudentRole;
+                } else if (selectedRole === "ROLE_INSTRUCTOR") {
+                    match = isInstructorRole;
+                } else if (selectedRole === "ROLE_ADMIN") {
+                    match = isAdminRole;
+                }
+
+                if (!match) {
+                    const label =
+                        selectedRole === "ROLE_ADMIN"
+                            ? "Admin"
+                            : selectedRole === "ROLE_INSTRUCTOR"
+                                ? "Giáo viên"
+                                : "Học viên";
+                    setError(`Tài khoản này không có quyền ${label}. Vui lòng chọn đúng vai trò.`);
+                    setIsLoading(false);
+                    return;
+                }
+
+                if (isAdminRole) {
                     navigate("/admin");
-                } else if (role === "ROLE_INSTRUCTOR") {
+                } else if (isInstructorRole) {
                     navigate("/teacher-home");
-                } else if (role === "ROLE_TEACHING_ASSISTANT") {
-                    navigate("/teaching-assistant-home");
                 } else {
-                    navigate("/courses");
+                    // Học viên (ROLE_STUDENT / ROLE_USER) và các role mặc định khác
+                    navigate("/home");
                 }
             } else {
                 setError(result.error || "Login failed. Please try again.");
@@ -64,6 +97,48 @@ function Login() {
 
                     <div className="bg-white shadow-2xl rounded-2xl p-8 border border-gray-100">
                         <form autoComplete="off" onSubmit={login} className="space-y-6">
+                            {/* Role Selection */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Đăng nhập với vai trò
+                                </label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedRole("ROLE_STUDENT")}
+                                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${selectedRole === "ROLE_STUDENT"
+                                            ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                                            : "border-gray-200 hover:border-gray-300 text-gray-700"
+                                            }`}
+                                    >
+                                        <User className="h-6 w-6" />
+                                        <span className="text-sm font-semibold">Học viên</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedRole("ROLE_INSTRUCTOR")}
+                                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${selectedRole === "ROLE_INSTRUCTOR"
+                                            ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                                            : "border-gray-200 hover:border-gray-300 text-gray-700"
+                                            }`}
+                                    >
+                                        <GraduationCap className="h-6 w-6" />
+                                        <span className="text-sm font-semibold">Giáo viên</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedRole("ROLE_ADMIN")}
+                                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${selectedRole === "ROLE_ADMIN"
+                                            ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                                            : "border-gray-200 hover:border-gray-300 text-gray-700"
+                                            }`}
+                                    >
+                                        <Shield className="h-6 w-6" />
+                                        <span className="text-sm font-semibold">Admin</span>
+                                    </button>
+                                </div>
+                            </div>
+
                             <InputField
                                 id="email"
                                 name="email"

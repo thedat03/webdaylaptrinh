@@ -262,7 +262,7 @@ function CommentManagement() {
     ];
 
     return (
-        <>
+        <div className="w-full max-w-full overflow-x-hidden">
             <div className="mb-8">
                 <h3 className="text-3xl font-bold text-slate-800 tracking-tight">
                     Quản lý Bình luận
@@ -321,7 +321,7 @@ function CommentManagement() {
                         showQuickJumper: true,
                         showTotal: (total) => `Tổng ${total} bình luận`
                     }}
-                    scroll={{ x: 1200 }}
+                    scroll={{ x: 'max-content' }}
                 />
             </Card>
 
@@ -334,7 +334,8 @@ function CommentManagement() {
                 okText="Xóa"
                 okType="danger"
                 cancelText="Hủy"
-                width={500}
+                width="90%"
+                style={{ maxWidth: 500 }}
                 centered
             >
                 <p>Bạn có chắc chắn muốn xóa bình luận này? Hành động này không thể hoàn tác.</p>
@@ -366,7 +367,8 @@ function CommentManagement() {
                         </Button>
                     )
                 ]}
-                width={800}
+                width="90%"
+                style={{ maxWidth: 800 }}
             >
                 {selectedComment && (
                     <Descriptions column={1} bordered>
@@ -401,7 +403,7 @@ function CommentManagement() {
                     </Descriptions>
                 )}
             </Modal>
-        </>
+        </div>
     );
 }
 

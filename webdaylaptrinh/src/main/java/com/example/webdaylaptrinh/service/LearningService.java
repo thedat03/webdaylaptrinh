@@ -88,4 +88,8 @@ public class LearningService {
     public boolean isUserEnrolled(User user, Course course) {
         return learningRepository.findByUserAndCourse(user, course) != null;
     }
+
+    public List<Learning> getStudentsByCourse(UUID courseId) {
+        return learningRepository.findByCourse_CourseId(courseId);
+    }
 }

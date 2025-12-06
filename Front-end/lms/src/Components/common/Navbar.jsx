@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import logo from "../../assets/images/logo.jpg";
@@ -8,8 +8,27 @@ import { authService } from "../../api/auth.service";
 
 function Navbar() {
     const navigate = useNavigate();
-    const [isAuthenticated,] = useState(authService.isUserAuthenticated());
+    const [isAuthenticated, setIsAuthenticated] = useState(
+        authService.isUserAuthenticated() ||
+        authService.isInstructorAuthenticated() ||
+        authService.isAdminAuthenticated()
+    );
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Update authentication state when component mounts or when navigating
+    useEffect(() => {
+        const checkAuth = () => {
+            setIsAuthenticated(
+                authService.isUserAuthenticated() ||
+                authService.isInstructorAuthenticated() ||
+                authService.isAdminAuthenticated()
+            );
+        };
+        checkAuth();
+        // Check auth on storage change (when login/logout happens)
+        window.addEventListener('storage', checkAuth);
+        return () => window.removeEventListener('storage', checkAuth);
+    }, []);
 
     const getHomePath = () => {
         const role = localStorage.getItem("role");

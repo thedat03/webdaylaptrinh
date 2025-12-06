@@ -3,6 +3,7 @@ package com.example.webdaylaptrinh.entity;
 import java.util.List;
 import java.util.UUID;
 
+import com.example.webdaylaptrinh.enums.CourseStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -40,12 +41,24 @@ public class Course {
 
     private String y_link;
 
+    /**
+     * Người tạo khóa học (giảng viên). Dùng để phân quyền theo user.id.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "user_id")
+    @JsonIgnoreProperties({"password", "learningCourses", "createdAt", "updatedAt"})
+    private User user;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "category_id")
     private Category category;
 
     @Column(length = 255)
     private String tags; // optional comma-separated labels
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private CourseStatus status = CourseStatus.PENDING; // Mặc định chờ duyệt
 
     @OneToMany(mappedBy = "course", cascade = CascadeType.ALL)
     @JsonIgnore

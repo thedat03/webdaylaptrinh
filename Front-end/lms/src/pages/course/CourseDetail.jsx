@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { message } from "antd";
 import Navbar from "../../Components/common/Navbar";
 import Footer from "../../Components/common/Footer";
 import CommentSection from "../../Components/common/CommentSection";
 import { courseService } from "../../api/course.service";
 import { commentService } from "../../api/comment.service";
+import { learningService } from "../../api/learning.service";
+import { paymentService } from "../../api/payment.service";
+import { authService } from "../../api/auth.service";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlay, faStar, faStarHalfAlt } from "@fortawesome/free-solid-svg-icons";
 
@@ -24,8 +28,31 @@ function CourseDetail() {
         distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
         reviews: []
     });
+    const userId = localStorage.getItem("id");
+    const [enrollLoading, setEnrollLoading] = useState(false);
+    const [enrollError, setEnrollError] = useState("");
+    const [enrollMessage, setEnrollMessage] = useState("");
+    const [isEnrolled, setIsEnrolled] = useState(false);
+    const [checkingEnrollment, setCheckingEnrollment] = useState(false);
 
     const totalLessons = modules.reduce((sum, m) => sum + ((lessonsByModule[m.module_id] || []).length), 0);
+    const firstLesson = useMemo(() => {
+        for (const module of modules) {
+            const lessons = lessonsByModule[module.module_id] || [];
+            if (lessons.length) {
+                return {
+                    lesson: lessons[0],
+                    module,
+                };
+            }
+        }
+        return null;
+    }, [modules, lessonsByModule]);
+    const primaryActionLabel = useMemo(() => {
+        if (isEnrolled) return "HỌC NGAY";
+        const price = Number(course?.price || 0);
+        return price > 0 ? "THANH TOÁN QUA VNPAY" : "GHI DANH MIỄN PHÍ";
+    }, [isEnrolled, course]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -88,6 +115,32 @@ function CourseDetail() {
         fetchRatings();
     }, [id]);
 
+    useEffect(() => {
+        const fetchEnrollment = async () => {
+            // Giáo viên có thể xem tất cả nội dung mà không cần mua
+            if (authService.isInstructorAuthenticated()) {
+                setIsEnrolled(true);
+                setCheckingEnrollment(false);
+                return;
+            }
+            if (!userId || !id) {
+                setIsEnrolled(false);
+                return;
+            }
+            setCheckingEnrollment(true);
+            try {
+                const response = await learningService.getEnrollments(userId);
+                if (response.success) {
+                    const enrolled = (response.data || []).some((item) => item.course_id === id);
+                    setIsEnrolled(enrolled);
+                }
+            } finally {
+                setCheckingEnrollment(false);
+            }
+        };
+        fetchEnrollment();
+    }, [userId, id]);
+
     const renderStars = (value = 0, size = "text-xl") => {
         const full = Math.floor(value);
         const hasHalf = value - full >= 0.5;
@@ -108,6 +161,90 @@ function CourseDetail() {
         if (p.startsWith("http") || p.startsWith("/api/")) return p;
         return `/api/files/${p}`; // fallback if backend stored only filename
     }, [course]);
+
+    const handleGoToFirstLesson = () => {
+        if (!firstLesson) {
+            message.info("Khóa học đang cập nhật bài học đầu tiên.");
+            return;
+        }
+        navigate(`/lesson/${firstLesson.lesson.lesson_id}`, {
+            state: {
+                lesson: firstLesson.lesson,
+                modules,
+                lessonsByModule,
+                courseId: id,
+            },
+        });
+    };
+
+    const handleLessonClick = (lesson) => {
+        // Giáo viên có thể xem tất cả bài học
+        const isInstructor = authService.isInstructorAuthenticated();
+        if (!isEnrolled && !isInstructor) {
+            message.info("Vui lòng thanh toán/ghi danh để mở bài học.");
+            return;
+        }
+        navigate(`/lesson/${lesson.lesson_id}`, {
+            state: { lesson, modules, lessonsByModule, courseId: id },
+        });
+    };
+
+    const handleEnrollClick = async () => {
+        if (!course) return;
+        if (!userId) {
+            message.info("Vui lòng đăng nhập để tiếp tục.");
+            navigate("/login");
+            return;
+        }
+        if (isEnrolled) {
+            handleGoToFirstLesson();
+            return;
+        }
+
+        setEnrollError("");
+        setEnrollMessage("");
+        const isFreeCourse = !course.price || Number(course.price) === 0;
+
+        if (isFreeCourse) {
+            setEnrollLoading(true);
+            try {
+                const result = await learningService.enrollCourse(userId, course.course_id);
+                if (result.success) {
+                    setEnrollMessage(result.data || "Đã ghi danh khoá học thành công.");
+                    setIsEnrolled(true);
+                    message.success("Bạn đã ghi danh thành công!");
+                } else {
+                    setEnrollError(result.error || "Không thể ghi danh khoá học.");
+                }
+            } catch (err) {
+                console.error(err);
+                setEnrollError("Hệ thống đang bận, vui lòng thử lại.");
+            } finally {
+                setEnrollLoading(false);
+            }
+            return;
+        }
+
+        setEnrollLoading(true);
+        try {
+            localStorage.setItem("pendingCourseId", course.course_id);
+            localStorage.setItem("pendingCourseName", course.course_name);
+            const result = await paymentService.createPayment({
+                userId,
+                courseId: course.course_id,
+            });
+            if (result.success && result.data?.paymentUrl) {
+                window.location.href = result.data.paymentUrl;
+                return;
+            }
+            setEnrollError(result.error || "Không thể khởi tạo thanh toán.");
+        } catch (err) {
+            console.error(err);
+            setEnrollError("Không thể khởi tạo thanh toán.");
+        } finally {
+            setEnrollLoading(false);
+        }
+    };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
     if (error || !course) return <div className="min-h-screen flex items-center justify-center text-red-500">{error || "Not found"}</div>;
@@ -194,7 +331,7 @@ function CourseDetail() {
                                                 <li
                                                     key={l.lesson_id}
                                                     className="px-5 py-3 text-sm flex items-center justify-between hover:bg-white cursor-pointer transition"
-                                                    onClick={() => navigate(`/lesson/${l.lesson_id}`, { state: { lesson: l, modules, lessonsByModule, courseId: id } })}
+                                                    onClick={() => handleLessonClick(l)}
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <span className="text-xs font-semibold text-gray-400">#{l.position}</span>
@@ -343,16 +480,34 @@ function CourseDetail() {
 
                         {/* Price */}
                         <div className="text-3xl font-bold text-orange-600 mb-3 text-center">
-                            {course.price ? `${Number(course.price).toLocaleString()}đ` : 'Miễn phí'}
+                            {course.price ? `${Number(course.price).toLocaleString()}đ` : "Miễn phí"}
                         </div>
 
                         {/* Register button */}
                         <button
-                            onClick={() => navigate(`/course/${course.course_id}`)}
-                            className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition mb-5"
+                            onClick={handleEnrollClick}
+                            disabled={enrollLoading || checkingEnrollment}
+                            className={`w-full py-3 rounded-xl text-white font-semibold transition mb-3 ${(enrollLoading || checkingEnrollment)
+                                ? "bg-indigo-300 cursor-not-allowed"
+                                : "bg-indigo-600 hover:bg-indigo-700"
+                                }`}
                         >
-                            ĐĂNG KÝ HỌC
+                            {checkingEnrollment ? "ĐANG KIỂM TRA..." : primaryActionLabel}
                         </button>
+
+                        {enrollError && (
+                            <p className="text-sm text-red-500 mb-2">{enrollError}</p>
+                        )}
+
+                        {enrollMessage && (
+                            <p className="text-sm text-green-600 font-semibold mb-2">{enrollMessage}</p>
+                        )}
+
+                        {!isEnrolled && Number(course.price || 0) > 0 && (
+                            <p className="text-xs text-gray-500 mb-2">
+                                Sau khi thanh toán thành công, hệ thống sẽ tự động mở toàn bộ bài học cho bạn.
+                            </p>
+                        )}
 
                         {/* Course details */}
                         <div className="space-y-3 text-sm text-gray-600">

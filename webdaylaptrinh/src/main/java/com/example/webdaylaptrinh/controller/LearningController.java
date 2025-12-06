@@ -37,4 +37,9 @@ public class LearningController {
     public void unenrollCourse(@PathVariable UUID id) {
         learningService.unenrollCourse(id);
     }
+
+    @GetMapping("/course/{courseId}")
+    public List<Learning> getStudentsByCourse(@PathVariable UUID courseId) {
+        return learningService.getStudentsByCourse(courseId);
+    }
 }

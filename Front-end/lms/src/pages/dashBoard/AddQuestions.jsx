@@ -337,7 +337,7 @@ function AddQuestion({ courseId, onBack }) {
 
     return (
         <div>
-            <div className="max-w-7xl mx-auto">
+            <div className="w-full max-w-full overflow-x-hidden">
                 {/* Header */}
                 <Card className="mb-6 rounded-2xl shadow-sm border-gray-100">
                     <div className="flex items-center justify-between">
@@ -384,13 +384,13 @@ function AddQuestion({ courseId, onBack }) {
                         dataSource={questions}
                         rowKey="id"
                         loading={loadingQuestions}
+                        scroll={{ x: 'max-content' }}
                         pagination={{
                             pageSize: 10,
                             showSizeChanger: false,
                             className: "mt-4"
                         }}
                         className="rounded-lg border border-gray-200"
-                        scroll={{ x: 800 }}
                     />
                 </Card>
 
@@ -408,7 +408,8 @@ function AddQuestion({ courseId, onBack }) {
                         form.resetFields();
                     }}
                     footer={null}
-                    width={800}
+                    width="90%"
+                    style={{ maxWidth: 800 }}
                     className="rounded-2xl"
                 >
                     <QuestionForm
@@ -434,7 +435,8 @@ function AddQuestion({ courseId, onBack }) {
                         editForm.resetFields();
                     }}
                     footer={null}
-                    width={800}
+                    width="90%"
+                    style={{ maxWidth: 800 }}
                     className="rounded-2xl"
                 >
                     <QuestionForm

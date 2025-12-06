@@ -1,6 +1,7 @@
 package com.example.webdaylaptrinh.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -22,7 +23,7 @@ public class Learning {
     private UUID id;
 
     @ManyToOne
-    @JsonIgnore
+    @JsonIgnoreProperties({"learningCourses", "password", "hibernateLazyInitializer", "handler"})
     @JoinColumn(name = "user_id")
     private User user;
 

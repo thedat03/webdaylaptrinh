@@ -98,7 +98,7 @@ function CategoryManagement() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full max-w-full overflow-x-hidden">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 <div className="px-8 py-6 border-b border-gray-100 bg-gradient-to-br from-indigo-100 to-purple-100">
                     <div className="flex items-center justify-between">
@@ -142,7 +142,7 @@ function CategoryManagement() {
                         <div className="grid gap-4">
                             {categories.map((category) => (
                                 <div key={category.category_id} className="group bg-white border border-gray-200 rounded-xl hover:shadow-lg hover:border-blue-200 transition-all duration-300 overflow-hidden">
-                                    <div className="p-6 flex items-start justify-between">
+                                    <div className="p-4 md:p-6 flex items-start justify-between gap-4 overflow-x-auto">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-3 mb-3">
                                                 <h3 className="text-xl font-bold text-gray-900">{category.name}</h3>

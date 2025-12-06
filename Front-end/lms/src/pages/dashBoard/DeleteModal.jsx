@@ -87,7 +87,8 @@ function DeleteModal({
             open={isOpen}
             onCancel={onClose}
             footer={null}
-            width={500}
+            width="90%"
+            style={{ maxWidth: 500 }}
             className="delete-modal"
             centered
         >

@@ -2,6 +2,7 @@ package com.example.webdaylaptrinh.repository;
 
 import com.example.webdaylaptrinh.entity.Comment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -59,5 +60,9 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
     // Đếm số comment đã duyệt của một course
     @Query("SELECT COUNT(c) FROM Comment c WHERE c.course.course_id = :courseId AND c.isApproved = true")
     long countByCourse_CourseIdAndIsApprovedTrue(@Param("courseId") UUID courseId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM Comment c WHERE c.course.course_id = :courseId")
+    void deleteByCourseId(@Param("courseId") UUID courseId);
 }
 

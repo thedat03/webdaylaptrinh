@@ -65,6 +65,8 @@ public class CurriculumService {
         lesson.setDescription(request.getDescription());
         lesson.setQuizData(request.getQuizData());
         lesson.setPosition(request.getPosition() == null ? 0 : request.getPosition());
+        lesson.setCodeLanguageId(request.getCodeLanguageId());
+        lesson.setCodeTestCases(request.getCodeTestCases());
         return lessonRepository.save(lesson);
     }
 
@@ -77,6 +79,8 @@ public class CurriculumService {
         if (request.getDescription() != null) lesson.setDescription(request.getDescription());
         if (request.getQuizData() != null) lesson.setQuizData(request.getQuizData());
         if (request.getPosition() != null) lesson.setPosition(request.getPosition());
+        if (request.getCodeLanguageId() != null) lesson.setCodeLanguageId(request.getCodeLanguageId());
+        if (request.getCodeTestCases() != null) lesson.setCodeTestCases(request.getCodeTestCases());
         return lessonRepository.save(lesson);
     }
 

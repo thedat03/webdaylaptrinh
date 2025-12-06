@@ -3,6 +3,7 @@ import { UploadOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { adminService } from "../../api/admin.service";
 import { categoryService } from "../../api/category.service";
+import { authService } from "../../api/auth.service";
 
 const { TextArea } = Input;
 
@@ -27,6 +28,11 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
             fetchCourseData();
         } else if (isOpen && !isEditMode) {
             form.resetFields();
+            // Auto-fill instructor if user is INSTRUCTOR
+            const currentUser = authService.getCurrentUser();
+            if (currentUser && currentUser.role === "ROLE_INSTRUCTOR" && currentUser.name) {
+                form.setFieldsValue({ instructor: currentUser.name });
+            }
         }
     }, [isOpen, courseId, isEditMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -131,10 +137,10 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
             open={isOpen}
             onCancel={handleCancel}
             footer={null}
-            width={isEditMode ? 900 : 600}
+            width="90%"
+            style={{ maxWidth: isEditMode ? 900 : 600, top: 20 }}
             className="custom-modal"
             destroyOnHidden
-            style={{ top: 20 }}
             styles={{ body: { maxHeight: "calc(100vh - 200px)", overflowY: "auto" } }}
         >
             {fetchingData ? (
@@ -177,7 +183,10 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
                                 { min: 2, message: "Instructor name must be at least 2 characters" },
                             ]}
                         >
-                            <Input placeholder="Enter instructor name" />
+                            <Input
+                                placeholder="Enter instructor name"
+                                disabled={authService.getCurrentUser()?.role === "ROLE_INSTRUCTOR"}
+                            />
                         </Form.Item>
 
                         <Form.Item

@@ -12,6 +12,8 @@ public class LessonRequest {
     private String description;
     private String quizData;
     private Integer position;
+    private Integer codeLanguageId;
+    private String codeTestCases;
 }
 
 

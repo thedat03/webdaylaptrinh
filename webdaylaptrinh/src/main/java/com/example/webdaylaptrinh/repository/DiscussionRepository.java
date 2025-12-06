@@ -6,10 +6,15 @@ import java.util.UUID;
 import com.example.webdaylaptrinh.entity.Course;
 import com.example.webdaylaptrinh.entity.Discussion;
 import org.springframework.data.jpa.repository.JpaRepository;
-
-
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface DiscussionRepository extends JpaRepository<Discussion, UUID> {
 
     List<Discussion> findByCourse(Course course);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM Discussion d WHERE d.course.course_id = :courseId")
+    void deleteByCourseId(@Param("courseId") UUID courseId);
 }

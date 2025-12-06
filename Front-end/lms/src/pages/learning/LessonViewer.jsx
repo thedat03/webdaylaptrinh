@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { message } from "antd";
 import CommentSection from "../../Components/common/CommentSection";
 import logo from "../../assets/images/logo.jpg";
+import { learningService } from "../../api/learning.service";
+import { codeService } from "../../api/code.service";
+import { JUDGE0_LANGUAGE_MAP } from "../../constants/judge0Languages";
 
 // --- Logic Helpers (Giữ nguyên) ---
 function toYouTubeEmbed(url) {
@@ -19,25 +22,6 @@ function toYouTubeEmbed(url) {
         return url;
     } catch {
         return url;
-    }
-}
-
-function extractExpectationRegex(description) {
-    if (!description) return null;
-    const lines = description.split(/\r?\n/);
-    const expectLine = lines.find((l) => l.trim().toUpperCase().startsWith("EXPECT:"));
-    if (!expectLine) return null;
-    const pattern = expectLine.split(":").slice(1).join(":").trim();
-    try {
-        if (pattern.startsWith("/") && pattern.lastIndexOf("/") > 0) {
-            const lastSlash = pattern.lastIndexOf("/");
-            const body = pattern.slice(1, lastSlash);
-            const flags = pattern.slice(lastSlash + 1);
-            return new RegExp(body, flags);
-        }
-        return new RegExp(pattern);
-    } catch {
-        return null;
     }
 }
 
@@ -268,6 +252,23 @@ function processInlineMarkdown(text) {
     return processed;
 }
 
+function parseCodeTestCases(raw) {
+    if (!raw) return [];
+    try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((tc, index) => ({
+            id: index + 1,
+            name: tc.name || `Test ${index + 1}`,
+            stdin: tc.stdin || "",
+            expectedOutput: tc.expectedOutput || "",
+            hidden: Boolean(tc.hidden),
+        }));
+    } catch {
+        return [];
+    }
+}
+
 // --- Component Chính ---
 export default function LessonViewer() {
     const navigate = useNavigate();
@@ -283,6 +284,9 @@ export default function LessonViewer() {
     const [expanded, setExpanded] = useState({});
     const [isDiscussionOpen, setIsDiscussionOpen] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
+    const userId = localStorage.getItem("id");
+    const [accessLoading, setAccessLoading] = useState(true);
+    const [canAccess, setCanAccess] = useState(false);
 
     // Tìm module_id của lesson hiện tại
     const currentModuleId = useMemo(() => {
@@ -295,6 +299,45 @@ export default function LessonViewer() {
         }
         return modules[0]?.module_id || null;
     }, [lesson, modules, lessonsByModule]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const verifyAccess = async () => {
+            if (!courseId) {
+                message.warning("Không tìm thấy thông tin khóa học.");
+                setAccessLoading(false);
+                navigate("/courses");
+                return;
+            }
+            if (!userId) {
+                message.info("Vui lòng đăng nhập để tiếp tục.");
+                setAccessLoading(false);
+                navigate("/login");
+                return;
+            }
+            setAccessLoading(true);
+            try {
+                const response = await learningService.getEnrollments(userId);
+                const allowed = response.success && (response.data || []).some((course) => course.course_id === courseId);
+                if (!allowed) {
+                    message.warning("Bạn chưa được cấp quyền truy cập khóa học này.");
+                    navigate(`/courses/${courseId}`);
+                    return;
+                }
+                if (!cancelled) {
+                    setCanAccess(true);
+                }
+            } finally {
+                if (!cancelled) {
+                    setAccessLoading(false);
+                }
+            }
+        };
+        verifyAccess();
+        return () => {
+            cancelled = true;
+        };
+    }, [courseId, userId, navigate]);
 
     useEffect(() => {
         if (modules && modules.length && !isInitialized) {
@@ -354,11 +397,21 @@ export default function LessonViewer() {
 
     // Code exercise state
     const [code, setCode] = useState(lesson?.codeSnippet || "");
-    const [result, setResult] = useState(null);
-    const [testCases, setTestCases] = useState([{ id: 1, expected: "", passed: false, selected: true }]);
+    const parsedLessonTestCases = useMemo(() => parseCodeTestCases(lesson?.codeTestCases), [lesson]);
+    const [testCases, setTestCases] = useState(parsedLessonTestCases);
     const [selectedTestCase, setSelectedTestCase] = useState(0);
-    const expectRegex = useMemo(() => extractExpectationRegex(lesson?.description), [lesson]);
+    const [executionResults, setExecutionResults] = useState([]);
+    const [runSummary, setRunSummary] = useState(null);
+    const [isRunning, setIsRunning] = useState(false);
+    const [runError, setRunError] = useState("");
     const embedSrc = useMemo(() => toYouTubeEmbed(lesson?.contentUrl || ""), [lesson]);
+    const codeLanguageLabel = useMemo(() => {
+        if (!lesson?.codeLanguageId) return null;
+        return JUDGE0_LANGUAGE_MAP[lesson.codeLanguageId] || `Judge0 ID ${lesson.codeLanguageId}`;
+    }, [lesson]);
+    const currentTestCase = testCases[selectedTestCase] || null;
+    const currentResult = executionResults[selectedTestCase] || null;
+    const passedCount = executionResults.filter((item) => item?.passed).length;
 
     // Quiz state
     const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -374,25 +427,73 @@ export default function LessonViewer() {
         return null;
     }, [lesson]);
 
+    useEffect(() => {
+        setCode(lesson?.codeSnippet || "");
+        setTestCases(parsedLessonTestCases);
+        setSelectedTestCase(0);
+        setExecutionResults([]);
+        setRunSummary(null);
+        setRunError("");
+    }, [lesson, parsedLessonTestCases]);
+
     // --- Handlers (Giữ nguyên) ---
     if (!lesson) return null; // Fallback handled in original code, shortened here for brevity
+    if (accessLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <p>Đang kiểm tra quyền truy cập bài học...</p>
+            </div>
+        );
+    }
+    if (!canAccess) {
+        return null;
+    }
 
-    const handleRunCheck = () => {
+    const handleRunCheck = async () => {
+        if (!lesson?.lesson_id) return;
+        if (!code?.trim()) {
+            message.warning("Vui lòng nhập mã trước khi chạy");
+            return;
+        }
+        // Validate lesson configuration
+        if (!lesson.codeLanguageId) {
+            message.error("Bài học chưa được cấu hình ngôn ngữ Judge0. Vui lòng liên hệ admin.");
+            return;
+        }
+        if (!testCases || testCases.length === 0) {
+            message.error("Bài học chưa có test case. Vui lòng liên hệ admin để cấu hình.");
+            return;
+        }
+        setIsRunning(true);
+        setRunSummary(null);
+        setRunError("");
         try {
-            new Function(code);
-        } catch (e) {
-            setResult({ ok: false, message: `Lỗi cú pháp: ${e.message}` });
-            return;
-        }
-        if (expectRegex) {
-            if (expectRegex.test(code)) {
-                setResult({ ok: true, message: "Đạt yêu cầu kiểm tra" });
+            const response = await codeService.runLessonCode(lesson.lesson_id, { sourceCode: code });
+            if (response.success) {
+                // Check if response has error field (from backend validation)
+                if (response.data?.error) {
+                    setRunError(response.data.error);
+                    message.error(response.data.error);
+                    return;
+                }
+                setExecutionResults(response.data.results || []);
+                setRunSummary({ ok: response.data.overallPassed, message: response.data.message });
+                if (response.data.overallPassed) {
+                    message.success("Chúc mừng! Bạn đã vượt qua tất cả test case.");
+                } else {
+                    message.warning("Một số test case chưa đạt. Kiểm tra lại kết quả.");
+                }
             } else {
-                setResult({ ok: false, message: "Chưa đạt yêu cầu kiểm tra" });
+                setRunError(response.error);
+                message.error(response.error);
             }
-            return;
+        } catch (error) {
+            const fallback = error?.message || "Không thể kết nối Judge0.";
+            setRunError(fallback);
+            message.error(fallback);
+        } finally {
+            setIsRunning(false);
         }
-        setResult({ ok: true, message: "Mã hợp lệ về cú pháp" });
     };
 
     const handleQuizSubmit = () => {
@@ -514,8 +615,12 @@ export default function LessonViewer() {
                                         {/* Right: Code Editor & Test Cases */}
                                         <div className="w-1/2 flex flex-col bg-white">
                                             <div className="border-b border-gray-200 px-4 py-2 flex items-center gap-2 bg-gray-50">
-                                                <span className="text-xs font-mono">main.cpp</span>
-                                                <span className="text-xs text-gray-500">C++</span>
+                                                <span className="text-xs font-mono truncate">
+                                                    {lesson.codeLanguageId ? `Judge0 #${lesson.codeLanguageId}` : "Chưa cấu hình ngôn ngữ"}
+                                                </span>
+                                                {codeLanguageLabel && (
+                                                    <span className="text-xs text-gray-500 truncate">{codeLanguageLabel}</span>
+                                                )}
                                             </div>
                                             <textarea
                                                 className="flex-1 bg-[#1e1e1e] text-[#d4d4d4] font-mono p-4 text-sm resize-none focus:outline-none"
@@ -524,48 +629,85 @@ export default function LessonViewer() {
                                                 placeholder="#include <iostream>&#10;&#10;int main() {&#10;    // Code here...&#10;    return 0;&#10;}"
                                             />
                                             <div className="border-t border-gray-200 p-4 bg-gray-50">
-                                                <div className="mb-3">
-                                                    <span className="text-sm font-medium text-gray-700">Bài kiểm tra {testCases.filter(t => t.passed).length}/{testCases.length}</span>
+                                                <div className="mb-3 flex items-center justify-between gap-3">
+                                                    <span className="text-sm font-medium text-gray-700">
+                                                        Bài kiểm tra {passedCount}/{testCases.length || 0}
+                                                    </span>
+                                                    {runSummary && (
+                                                        <span className={`text-xs ${runSummary.ok ? "text-green-600" : "text-orange-600"}`}>
+                                                            {runSummary.message}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <div className="flex gap-2 mb-3">
-                                                    {testCases.map((tc, idx) => (
-                                                        <button
-                                                            key={tc.id}
-                                                            onClick={() => {
-                                                                setSelectedTestCase(idx);
-                                                                setTestCases(prev => prev.map((t, i) => ({ ...t, selected: i === idx })));
-                                                            }}
-                                                            className={`px-3 py-1.5 text-xs font-medium rounded ${tc.selected
-                                                                ? "bg-blue-600 text-white"
-                                                                : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-                                                                }`}
-                                                        >
-                                                            Bài kiểm tra {tc.id}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                                {testCases[selectedTestCase] && (
-                                                    <div className="mb-3 space-y-2">
-                                                        <div>
-                                                            <p className="text-xs text-gray-600 mb-1">Đầu ra mong muốn:</p>
-                                                            <div className="bg-gray-800 text-gray-200 p-2 rounded text-xs font-mono">
-                                                                {testCases[selectedTestCase].expected || "Hello World"}
-                                                            </div>
+                                                {testCases.length ? (
+                                                    <>
+                                                        <div className="flex flex-wrap gap-2 mb-3">
+                                                            {testCases.map((tc, idx) => {
+                                                                const result = executionResults[idx];
+                                                                const isSelected = selectedTestCase === idx;
+                                                                let statusClass = "bg-white text-gray-700 border border-gray-300";
+                                                                if (result) {
+                                                                    statusClass = result.passed
+                                                                        ? "border-green-500 text-green-700 bg-green-50"
+                                                                        : "border-red-500 text-red-700 bg-red-50";
+                                                                }
+                                                                const baseClass = isSelected ? "ring-2 ring-blue-500" : "";
+                                                                return (
+                                                                    <button
+                                                                        key={tc.id || idx}
+                                                                        onClick={() => setSelectedTestCase(idx)}
+                                                                        className={`px-3 py-1.5 text-xs font-medium rounded transition ${statusClass} ${baseClass}`}
+                                                                    >
+                                                                        {tc.name || `Test ${idx + 1}`}
+                                                                    </button>
+                                                                );
+                                                            })}
                                                         </div>
-                                                        <p className="text-xs text-gray-500">Giới hạn thời gian: 500ms</p>
-                                                    </div>
+                                                        {currentTestCase && (
+                                                            <div className="mb-3 space-y-2">
+                                                                <div>
+                                                                    <p className="text-xs text-gray-600 mb-1">Đầu vào</p>
+                                                                    <div className="bg-white border text-gray-700 p-2 rounded text-xs font-mono min-h-[40px]">
+                                                                        {currentTestCase.stdin || "Không có"}
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs text-gray-600 mb-1">Đầu ra mong muốn</p>
+                                                                    <div className="bg-gray-900 text-gray-100 p-2 rounded text-xs font-mono min-h-[40px]">
+                                                                        {currentTestCase.hidden ? "Ẩn (hidden test)" : (currentTestCase.expectedOutput || "Không có")}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {currentResult && (
+                                                            <div className="mb-3 space-y-2">
+                                                                <div className={`p-2 rounded text-xs font-semibold ${currentResult.passed ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                                                                    {currentResult.status}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs text-gray-600 mb-1">Kết quả thực tế</p>
+                                                                    <div className="bg-white border text-gray-800 p-2 rounded text-xs font-mono min-h-[40px] whitespace-pre-wrap">
+                                                                        {currentResult.stdout || currentResult.compileOutput || currentResult.stderr || "Không có output"}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <p className="text-xs text-gray-500">Bài học chưa được cấu hình test case.</p>
                                                 )}
-                                                {result && (
-                                                    <div className={`mb-3 p-2 rounded text-xs ${result.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                                        {result.message}
+                                                {runError && (
+                                                    <div className="mb-3 p-2 rounded text-xs bg-red-50 text-red-700">
+                                                        {runError}
                                                     </div>
                                                 )}
                                                 <div className="flex justify-end">
                                                     <button
                                                         onClick={handleRunCheck}
-                                                        className="bg-blue-600 text-white px-6 py-2 rounded text-sm font-semibold hover:bg-blue-700 transition"
+                                                        disabled={isRunning || !lesson.codeLanguageId || !testCases || testCases.length === 0}
+                                                        className={`px-6 py-2 rounded text-sm font-semibold text-white ${(isRunning || !lesson.codeLanguageId || !testCases || testCases.length === 0) ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"} transition`}
                                                     >
-                                                        KIỂM TRA
+                                                        {isRunning ? "ĐANG CHẠY..." : "KIỂM TRA"}
                                                     </button>
                                                 </div>
                                             </div>

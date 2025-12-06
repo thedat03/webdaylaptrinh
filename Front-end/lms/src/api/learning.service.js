@@ -20,7 +20,18 @@ async function enrollCourse(userId, courseId) {
     }
 }
 
+async function getStudentsByCourse(courseId) {
+    try {
+        const { data } = await api.get(`/api/learning/course/${courseId}`);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error fetching students by course:", error);
+        return { success: false, error: "Could not fetch students" };
+    }
+}
+
 export const learningService = {
     getEnrollments,
     enrollCourse,
+    getStudentsByCourse,
 };
