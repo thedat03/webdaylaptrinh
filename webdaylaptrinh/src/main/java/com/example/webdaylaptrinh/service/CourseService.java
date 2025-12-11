@@ -33,6 +33,7 @@ public class CourseService {
     private final FeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final NotificationService notificationService;
 
     public List<Course> getAllCourses() {
         List<Course> courses = courseRepository.findAll();
@@ -132,9 +133,15 @@ public class CourseService {
         return count;
     }
 
+    @Transactional
     public Course updateCourse(UUID id, Course updatedCourse) {
         Course existingCourse = courseRepository.findById(id).orElse(null);
         if (existingCourse != null) {
+            boolean nameChanged = updatedCourse.getCourse_name() != null && 
+                                 !updatedCourse.getCourse_name().equals(existingCourse.getCourse_name());
+            boolean descChanged = updatedCourse.getDescription() != null && 
+                                 !updatedCourse.getDescription().equals(existingCourse.getDescription());
+            
             existingCourse.setCourse_name(updatedCourse.getCourse_name());
             existingCourse.setDescription(updatedCourse.getDescription());
             existingCourse.setP_link(updatedCourse.getP_link());
@@ -149,7 +156,17 @@ public class CourseService {
             } else {
                 existingCourse.setCategory(null);
             }
-            return courseRepository.save(existingCourse);
+            Course savedCourse = courseRepository.save(existingCourse);
+            
+            // Thông báo cho học viên nếu có thay đổi quan trọng
+            if (nameChanged || descChanged) {
+                String updateMessage = nameChanged 
+                    ? String.format("Tên khóa học đã được cập nhật thành \"%s\"", updatedCourse.getCourse_name())
+                    : "Thông tin khóa học đã được cập nhật";
+                notificationService.notifyCourseUpdate(savedCourse, updateMessage);
+            }
+            
+            return savedCourse;
         }
         return null;
     }

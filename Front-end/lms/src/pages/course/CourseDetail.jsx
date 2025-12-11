@@ -9,8 +9,9 @@ import { commentService } from "../../api/comment.service";
 import { learningService } from "../../api/learning.service";
 import { paymentService } from "../../api/payment.service";
 import { authService } from "../../api/auth.service";
+import { examService } from "../../api/exam.service";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlay, faStar, faStarHalfAlt } from "@fortawesome/free-solid-svg-icons";
+import { faPlay, faStar, faStarHalfAlt, faClipboardList } from "@fortawesome/free-solid-svg-icons";
 
 function CourseDetail() {
     const { id } = useParams();
@@ -34,6 +35,8 @@ function CourseDetail() {
     const [enrollMessage, setEnrollMessage] = useState("");
     const [isEnrolled, setIsEnrolled] = useState(false);
     const [checkingEnrollment, setCheckingEnrollment] = useState(false);
+    const [hasPublishedExam, setHasPublishedExam] = useState(false);
+    const [checkingExam, setCheckingExam] = useState(false);
 
     const totalLessons = modules.reduce((sum, m) => sum + ((lessonsByModule[m.module_id] || []).length), 0);
     const firstLesson = useMemo(() => {
@@ -140,6 +143,22 @@ function CourseDetail() {
         };
         fetchEnrollment();
     }, [userId, id]);
+
+    useEffect(() => {
+        const checkPublishedExam = async () => {
+            if (!id) return;
+            setCheckingExam(true);
+            try {
+                const result = await examService.getPublishedExams(id);
+                setHasPublishedExam(result.success && result.data && result.data.length > 0);
+            } catch (error) {
+                setHasPublishedExam(false);
+            } finally {
+                setCheckingExam(false);
+            }
+        };
+        checkPublishedExam();
+    }, [id]);
 
     const renderStars = (value = 0, size = "text-xl") => {
         const full = Math.floor(value);
@@ -351,6 +370,30 @@ function CourseDetail() {
                             );
                         })}
                     </div>
+
+                    {/* Exam Section - chỉ hiển thị khi đã đăng ký và có đề thi */}
+                    {isEnrolled && hasPublishedExam && (
+                        <div className="mt-8 rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+                            <div className="px-5 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-200">
+                                <div className="flex items-center gap-3">
+                                    <FontAwesomeIcon icon={faClipboardList} className="text-purple-600 text-xl" />
+                                    <div>
+                                        <p className="text-base font-semibold text-gray-900">Đề thi</p>
+                                        <p className="text-sm text-gray-500 mt-0.5">Kiểm tra kiến thức của bạn</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-5">
+                                <button
+                                    onClick={() => navigate(`/assessment/${id}`)}
+                                    className="w-full py-3 rounded-xl text-white font-semibold transition bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 flex items-center justify-center gap-2"
+                                >
+                                    <FontAwesomeIcon icon={faClipboardList} />
+                                    Làm đề thi
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Ratings Section */}
                     <section className="bg-white rounded-2xl shadow p-6 border border-gray-100">

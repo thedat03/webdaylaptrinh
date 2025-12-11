@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
     Card,
     Form,
@@ -9,10 +10,15 @@ import {
     message,
     Row,
     Col,
-    Divider,
     Table,
     Modal,
-    Popconfirm
+    Popconfirm,
+    Switch,
+    Tag,
+    Space,
+    Tabs,
+    Descriptions,
+    Badge
 } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -21,432 +27,788 @@ import {
     faPlus,
     faEdit,
     faTrash,
-    faList
+    faList,
+    faPaperPlane,
+    faUsers,
+    faEye
 } from '@fortawesome/free-solid-svg-icons';
-import { adminService } from '../../api/admin.service';
-import { questionService } from '../../api/question.service';
+import { examService } from '../../api/exam.service';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
-function AddQuestion({ courseId, onBack }) {
+function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
+    const { id } = useParams();
+    const navigate = useNavigate();
+
+    // Lấy courseId từ route params hoặc props
+    const courseId = propCourseId || id;
+
+    // Tạo hàm onBack mặc định nếu không có props
+    const onBack = propOnBack || (() => navigate('/teacher-home?tab=courses'));
     const [form] = Form.useForm();
+    const [editForm] = Form.useForm();
+    const [examForm] = Form.useForm();
+
     const [loading, setLoading] = useState(false);
+    const [loadingExam, setLoadingExam] = useState(true);
+    const [exams, setExams] = useState([]);
+    const [selectedExam, setSelectedExam] = useState(null);
     const [questions, setQuestions] = useState([]);
-    const [loadingQuestions, setLoadingQuestions] = useState(true);
     const [editingQuestion, setEditingQuestion] = useState(null);
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-    const [isAddModalVisible, setIsAddModalVisible] = useState(false); // New state for Add Modal
-    const [editForm] = Form.useForm();
+    const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+    const [isCreateExamModalVisible, setIsCreateExamModalVisible] = useState(false);
+    const [activeTab, setActiveTab] = useState('questions');
+    const [submissions, setSubmissions] = useState([]);
+    const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+    const [selectedSubmission, setSelectedSubmission] = useState(null);
+    const [isSubmissionDetailVisible, setIsSubmissionDetailVisible] = useState(false);
 
     useEffect(() => {
-        fetchQuestions();
+        if (courseId) {
+            fetchExams();
+        } else {
+            message.error('Không tìm thấy ID khóa học');
+            setLoadingExam(false);
+        }
     }, [courseId]);
 
-    const fetchQuestions = async () => {
-        setLoadingQuestions(true);
-        try {
-            const result = await questionService.getQuestionsByCourse(courseId);
-            if (result.success) {
-                setQuestions(result.data);
-            } else {
-                message.error(result.error || 'Failed to fetch questions');
+    const fetchExams = async () => {
+        if (!courseId) {
+            message.error('Không tìm thấy ID khóa học');
+            return;
+        }
+        setLoadingExam(true);
+        const result = await examService.getAllExams(courseId);
+        if (result.success) {
+            setExams(result.data || []);
+            if (result.data && result.data.length > 0 && !selectedExam) {
+                // Tự động chọn đề thi đầu tiên
+                selectExam(result.data[0]);
+            } else if (selectedExam) {
+                // Cập nhật lại đề thi đã chọn
+                const updated = result.data.find(e => e.id === selectedExam.id);
+                if (updated) {
+                    selectExam(updated);
+                }
             }
-        } catch {
-            message.error('Failed to fetch questions');
-        } finally {
-            setLoadingQuestions(false);
+        } else {
+            setExams([]);
+            setSelectedExam(null);
+            setQuestions([]);
+        }
+        setLoadingExam(false);
+    };
+
+    const selectExam = async (exam) => {
+        setSelectedExam(exam);
+        setQuestions(exam.questions || []);
+    };
+
+    const handleSelectExam = (exam) => {
+        selectExam(exam);
+    };
+
+    const handleCreateExam = async (values) => {
+        if (!courseId) {
+            message.error('Không tìm thấy ID khóa học');
+            return;
+        }
+        setLoading(true);
+        const payload = {
+            title: values.title,
+            description: values.description,
+            published: false
+        };
+        const result = await examService.createExam(courseId, payload);
+        setLoading(false);
+        if (result.success) {
+            message.success('Đã tạo đề thi. Thêm câu hỏi ngay!');
+            setIsCreateExamModalVisible(false);
+            examForm.resetFields();
+            await fetchExams();
+            if (result.data) {
+                selectExam(result.data);
+            }
+        } else {
+            message.error(result.error);
         }
     };
 
-    const getActualAnswerValue = (values, selectedAnswer) => {
-        const answerMap = {
-            'option1': values.option1,
-            'option2': values.option2,
-            'option3': values.option3,
-            'option4': values.option4
+    const handlePublishToggle = async (checked, examId) => {
+        if (!examId) return;
+        const exam = exams.find(e => e.id === examId);
+        if (!exam) return;
+        const payload = {
+            title: exam.title,
+            description: exam.description,
+            published: checked
         };
-        return answerMap[selectedAnswer];
+        const result = await examService.updateExam(examId, payload);
+        if (result.success) {
+            message.success(checked ? 'Đã công bố đề thi' : 'Đã ẩn đề thi');
+            await fetchExams();
+        } else {
+            message.error(result.error || 'Không thể cập nhật trạng thái');
+        }
     };
 
     const handleSubmit = async (values) => {
+        if (!selectedExam) {
+            message.error('Hãy chọn đề thi trước');
+            return;
+        }
         setLoading(true);
-        try {
-            const actualAnswerValue = getActualAnswerValue(values, values.answer);
 
-            const questionData = {
-                question: values.question,
-                option1: values.option1,
-                option2: values.option2,
-                option3: values.option3,
-                option4: values.option4,
-                answer: actualAnswerValue,
-                courseId: courseId
-            };
+        const payload = buildQuestionPayload(values);
+        const result = await examService.addQuestion(selectedExam.id, payload);
+        setLoading(false);
 
-            const result = await adminService.createQuestion(questionData);
-
-            if (result.success) {
-                message.success('Question added successfully!');
-                form.resetFields();
-                setIsAddModalVisible(false);
-                fetchQuestions();
-            } else {
-                message.error(result.error || 'Failed to add question');
-            }
-        } catch {
-            message.error('An unexpected error occurred');
-        } finally {
-            setLoading(false);
+        if (result.success) {
+            message.success('Đã thêm câu hỏi');
+            form.resetFields();
+            setIsAddModalVisible(false);
+            await fetchExams();
+        } else {
+            message.error(result.error || 'Thêm câu hỏi thất bại');
         }
     };
 
     const handleEdit = (question) => {
         setEditingQuestion(question);
-
-        let selectedAnswer = 'option1';
-        if (question.answer === question.option1) selectedAnswer = 'option1';
-        else if (question.answer === question.option2) selectedAnswer = 'option2';
-        else if (question.answer === question.option3) selectedAnswer = 'option3';
-        else if (question.answer === question.option4) selectedAnswer = 'option4';
-
         editForm.setFieldsValue({
-            question: question.question,
+            type: question.type || 'MCQ',
+            prompt: question.prompt,
             option1: question.option1,
             option2: question.option2,
             option3: question.option3,
             option4: question.option4,
-            answer: selectedAnswer
+            answer: question.answer,
+            languageId: question.languageId,
+            starterCode: question.starterCode,
+            testCases: question.testCases,
+            maxScore: question.maxScore
         });
         setIsEditModalVisible(true);
     };
 
     const handleEditSubmit = async (values) => {
         if (!editingQuestion) return;
-
-        try {
-            const actualAnswerValue = getActualAnswerValue(values, values.answer);
-
-            const questionData = {
-                question: values.question,
-                option1: values.option1,
-                option2: values.option2,
-                option3: values.option3,
-                option4: values.option4,
-                answer: actualAnswerValue,
-                courseId: courseId
-            };
-
-            const result = await adminService.updateQuestion(editingQuestion.id, questionData);
-
-            if (result.success) {
-                message.success('Question updated successfully!');
-                setIsEditModalVisible(false);
-                setEditingQuestion(null);
-                editForm.resetFields();
-                fetchQuestions();
-            } else {
-                message.error(result.error || 'Failed to update question');
-            }
-        } catch {
-            message.error('An unexpected error occurred');
+        setLoading(true);
+        const payload = buildQuestionPayload(values);
+        const result = await examService.updateQuestion(editingQuestion.id, payload);
+        setLoading(false);
+        if (result.success) {
+            message.success('Đã cập nhật câu hỏi');
+            setIsEditModalVisible(false);
+            setEditingQuestion(null);
+            await fetchExams();
+        } else {
+            message.error(result.error || 'Cập nhật thất bại');
         }
     };
 
     const handleDelete = async (questionId) => {
-        try {
-            const result = await adminService.deleteQuestion(questionId);
-            if (result.success) {
-                message.success('Question deleted successfully!');
-                fetchQuestions();
-            } else {
-                message.error(result.error || 'Failed to delete question');
-            }
-        } catch {
-            message.error('An unexpected error occurred');
+        const result = await examService.deleteQuestion(questionId);
+        if (result.success) {
+            message.success('Đã xóa câu hỏi');
+            await fetchExams();
+        } else {
+            message.error(result.error || 'Xóa thất bại');
         }
     };
 
-    const columns = [
+    const fetchSubmissions = async (examId) => {
+        if (!examId) return;
+        setLoadingSubmissions(true);
+        const result = await examService.getSubmissions(examId);
+        if (result.success) {
+            setSubmissions(result.data || []);
+        } else {
+            message.error(result.error || 'Không thể tải danh sách bài làm');
+            setSubmissions([]);
+        }
+        setLoadingSubmissions(false);
+    };
+
+    const handleViewSubmission = async (submissionId) => {
+        if (!selectedExam) return;
+        const result = await examService.getSubmissionDetail(selectedExam.id, submissionId);
+        if (result.success) {
+            setSelectedSubmission(result.data);
+            setIsSubmissionDetailVisible(true);
+        } else {
+            message.error(result.error || 'Không thể tải chi tiết bài làm');
+        }
+    };
+
+    const submissionColumns = [
         {
-            title: 'Question',
-            dataIndex: 'question',
-            key: 'question',
-            width: '85%',
-            render: (text) => (
-                <div>
-                    <Text ellipsis={{ tooltip: text }}>{text}</Text>
-                </div>
+            title: 'Học viên',
+            dataIndex: ['user', 'username'],
+            key: 'username',
+            render: (text, record) => record.user?.username || record.user?.email || 'N/A'
+        },
+        {
+            title: 'Điểm',
+            key: 'score',
+            render: (_, record) => (
+                <Text strong>
+                    {record.totalScore || 0} / {record.maxScore || 0}
+                </Text>
+            )
+        },
+        {
+            title: 'Tỷ lệ',
+            key: 'percent',
+            render: (_, record) => {
+                const percent = record.maxScore > 0
+                    ? Math.round((record.totalScore / record.maxScore) * 100)
+                    : 0;
+                return (
+                    <Tag color={percent >= 60 ? 'green' : percent >= 40 ? 'orange' : 'red'}>
+                        {percent}%
+                    </Tag>
+                );
+            }
+        },
+        {
+            title: 'Trạng thái',
+            key: 'passed',
+            render: (_, record) => (
+                <Badge
+                    status={record.passed ? 'success' : 'error'}
+                    text={record.passed ? 'Đạt' : 'Chưa đạt'}
+                />
+            )
+        },
+        {
+            title: 'Thời gian nộp',
+            dataIndex: 'submittedAt',
+            key: 'submittedAt',
+            render: (text) => text ? new Date(text).toLocaleString('vi-VN') : 'N/A'
+        },
+        {
+            title: 'Hành động',
+            key: 'action',
+            render: (_, record) => (
+                <Button
+                    type="link"
+                    icon={<FontAwesomeIcon icon={faEye} />}
+                    onClick={() => handleViewSubmission(record.id)}
+                >
+                    Xem chi tiết
+                </Button>
+            )
+        }
+    ];
+
+    const buildQuestionPayload = (values) => {
+        const base = {
+            type: values.type,
+            prompt: values.prompt,
+            maxScore: values.maxScore || 1
+        };
+        if (values.type === 'MCQ') {
+            return {
+                ...base,
+                option1: values.option1,
+                option2: values.option2,
+                option3: values.option3,
+                option4: values.option4,
+                answer: values.answer
+            };
+        }
+        return {
+            ...base,
+            languageId: Number(values.languageId),
+            starterCode: values.starterCode,
+            testCases: values.testCases
+        };
+    };
+
+    const columns = useMemo(() => [
+        {
+            title: 'Loại',
+            dataIndex: 'type',
+            key: 'type',
+            width: 120,
+            render: (type) => (
+                <Tag color={type === 'CODE' ? 'purple' : 'blue'}>
+                    {type === 'CODE' ? 'Code' : 'Trắc nghiệm'}
+                </Tag>
             ),
         },
         {
-            title: 'Actions',
+            title: 'Câu hỏi / Đề bài',
+            dataIndex: 'prompt',
+            key: 'prompt',
+            render: (text) => <Text ellipsis={{ tooltip: text }}>{text}</Text>,
+        },
+        {
+            title: 'Điểm',
+            dataIndex: 'maxScore',
+            key: 'maxScore',
+            width: 100,
+            render: (v) => <Text strong>{v || 1}</Text>,
+        },
+        {
+            title: 'Hành động',
             key: 'actions',
+            width: 120,
             render: (_, record) => (
-                <div className="flex gap-2">
-                    <Button
-                        type="text"
-                        size="small"
-                        onClick={() => handleEdit(record)}
-                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                    >
+                <Space>
+                    <Button type="text" size="small" onClick={() => handleEdit(record)}>
                         <FontAwesomeIcon icon={faEdit} />
                     </Button>
                     <Popconfirm
-                        title="Delete Question"
-                        description="Are you sure you want to delete this question?"
+                        title="Xóa câu hỏi"
+                        description="Bạn chắc chắn muốn xóa?"
                         onConfirm={() => handleDelete(record.id)}
-                        okText="Yes"
-                        cancelText="No"
+                        okText="Xóa"
+                        cancelText="Hủy"
                     >
-                        <Button
-                            type="text"
-                            size="small"
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                        >
+                        <Button type="text" size="small" danger>
                             <FontAwesomeIcon icon={faTrash} />
                         </Button>
                     </Popconfirm>
-                </div>
+                </Space>
             ),
         },
-    ];
+    ], []);
 
-    const QuestionForm = ({ form, onFinish, loading, submitText, initialValues }) => (
-        <Form
-            form={form}
-            layout="vertical"
-            onFinish={onFinish}
-            size="large"
-            className="space-y-4"
-            initialValues={initialValues}
-        >
-            <Form.Item
-                label="Question"
-                name="question"
-                rules={[
-                    { required: true, message: 'Please enter the question' },
-                    { min: 10, message: 'Question must be at least 10 characters' },
-                    { max: 500, message: 'Question cannot exceed 500 characters' }
-                ]}
+    const QuestionForm = ({ form, onFinish, loading, submitText }) => {
+        const type = Form.useWatch('type', form) || 'MCQ';
+        return (
+            <Form
+                form={form}
+                layout="vertical"
+                onFinish={onFinish}
+                size="large"
+                className="space-y-4"
+                initialValues={{ type: 'MCQ', maxScore: 1 }}
             >
-                <TextArea
-                    placeholder="Enter your question here..."
-                    rows={3}
-                    className="rounded-lg"
-                    showCount
-                    maxLength={500}
-                />
-            </Form.Item>
+                <Form.Item
+                    label="Loại câu hỏi"
+                    name="type"
+                    rules={[{ required: true, message: 'Chọn loại câu hỏi' }]}
+                >
+                    <Select>
+                        <Option value="MCQ">Trắc nghiệm</Option>
+                        <Option value="CODE">Code (tự luận chấm test)</Option>
+                    </Select>
+                </Form.Item>
 
-            <Row gutter={16}>
-                <Col span={12}>
-                    <Form.Item
-                        label="Option A"
-                        name="option1"
-                        rules={[
-                            { required: true, message: 'Option A is required' },
-                            { max: 200, message: 'Option cannot exceed 200 characters' }
-                        ]}
-                    >
-                        <Input placeholder="Enter option A" className="rounded-lg" />
-                    </Form.Item>
-                </Col>
-                <Col span={12}>
-                    <Form.Item
-                        label="Option B"
-                        name="option2"
-                        rules={[
-                            { required: true, message: 'Option B is required' },
-                            { max: 200, message: 'Option cannot exceed 200 characters' }
-                        ]}
-                    >
-                        <Input placeholder="Enter option B" className="rounded-lg" />
-                    </Form.Item>
-                </Col>
-            </Row>
+                <Form.Item
+                    label="Nội dung"
+                    name="prompt"
+                    rules={[
+                        { required: true, message: 'Nhập nội dung' },
+                        { min: 5, message: 'Tối thiểu 5 ký tự' }
+                    ]}
+                >
+                    <TextArea rows={3} showCount maxLength={1000} />
+                </Form.Item>
 
-            <Row gutter={16}>
-                <Col span={12}>
-                    <Form.Item
-                        label="Option C"
-                        name="option3"
-                        rules={[
-                            { required: true, message: 'Option C is required' },
-                            { max: 200, message: 'Option cannot exceed 200 characters' }
-                        ]}
-                    >
-                        <Input placeholder="Enter option C" className="rounded-lg" />
-                    </Form.Item>
-                </Col>
-                <Col span={12}>
-                    <Form.Item
-                        label="Option D"
-                        name="option4"
-                        rules={[
-                            { required: true, message: 'Option D is required' },
-                            { max: 200, message: 'Option cannot exceed 200 characters' }
-                        ]}
-                    >
-                        <Input placeholder="Enter option D" className="rounded-lg" />
-                    </Form.Item>
-                </Col>
-            </Row>
+                <Form.Item
+                    label="Điểm tối đa"
+                    name="maxScore"
+                    rules={[{ required: true, message: 'Nhập điểm' }]}
+                >
+                    <Input type="number" min={0.1} step="0.1" />
+                </Form.Item>
 
-            <Form.Item
-                label="Correct Answer"
-                name="answer"
-                rules={[{ required: true, message: 'Please select the correct answer' }]}
-            >
-                <Select placeholder="Select the correct answer" className="rounded-lg">
-                    <Option value="option1">Option A</Option>
-                    <Option value="option2">Option B</Option>
-                    <Option value="option3">Option C</Option>
-                    <Option value="option4">Option D</Option>
-                </Select>
-            </Form.Item>
+                {type === 'MCQ' ? (
+                    <>
+                        <Row gutter={16}>
+                            <Col span={12}>
+                                <Form.Item label="Option A" name="option1" rules={[{ required: true }]}>
+                                    <Input />
+                                </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                                <Form.Item label="Option B" name="option2" rules={[{ required: true }]}>
+                                    <Input />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                        <Row gutter={16}>
+                            <Col span={12}>
+                                <Form.Item label="Option C" name="option3" rules={[{ required: true }]}>
+                                    <Input />
+                                </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                                <Form.Item label="Option D" name="option4" rules={[{ required: true }]}>
+                                    <Input />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                        <Form.Item label="Đáp án đúng" name="answer" rules={[{ required: true }]}>
+                            <Select>
+                                <Option value={form.getFieldValue('option1')}>Option A</Option>
+                                <Option value={form.getFieldValue('option2')}>Option B</Option>
+                                <Option value={form.getFieldValue('option3')}>Option C</Option>
+                                <Option value={form.getFieldValue('option4')}>Option D</Option>
+                            </Select>
+                        </Form.Item>
+                    </>
+                ) : (
+                    <>
+                        <Form.Item label="Ngôn ngữ Judge0 ID" name="languageId" rules={[{ required: true }]}>
+                            <Input type="number" placeholder="VD: 63 cho JavaScript" />
+                        </Form.Item>
+                        <Form.Item label="Starter code (optional)" name="starterCode">
+                            <TextArea rows={4} />
+                        </Form.Item>
+                        <Form.Item
+                            label="Test cases (JSON mảng CodeTestCase)"
+                            name="testCases"
+                            rules={[{ required: true, message: 'Nhập test cases' }]}
+                        >
+                            <TextArea rows={6} placeholder='[{"stdin":"1 2","expectedOutput":"3"}]' />
+                        </Form.Item>
+                    </>
+                )}
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                <Button
-                    onClick={() => {
-                        if (submitText.includes('Add')) {
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                    <Button
+                        onClick={() => {
+                            form.resetFields();
                             setIsAddModalVisible(false);
-                        } else {
                             setIsEditModalVisible(false);
                             setEditingQuestion(null);
-                            editForm.resetFields();
-                        }
-                    }}
-                    className="rounded-lg px-6"
-                >
-                    Cancel
-                </Button>
-                <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={loading}
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
-                >
-                    <FontAwesomeIcon icon={faPlus} className="mr-2" />
-                    {submitText}
-                </Button>
-            </div>
-        </Form>
-    );
+                        }}
+                    >
+                        Hủy
+                    </Button>
+                    <Button type="primary" htmlType="submit" loading={loading} className="bg-blue-600">
+                        <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                        {submitText}
+                    </Button>
+                </div>
+            </Form>
+        );
+    };
 
     return (
-        <div>
-            <div className="w-full max-w-full overflow-x-hidden">
-                {/* Header */}
-                <Card className="mb-6 rounded-2xl shadow-sm border-gray-100">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <Button
-                                type="text"
-                                onClick={onBack}
-                                className="rounded-xl px-3 py-2 flex items-center gap-2 text-gray-600 hover:text-gray-800 font-medium"
-                            >
-                                <FontAwesomeIcon icon={faArrowLeft} />
-                                Back
-                            </Button>
-                            <div>
-                                <Title level={2} className="!mb-0 !text-gray-900">
-                                    <FontAwesomeIcon icon={faQuestionCircle} className="mr-3 text-blue-600" />
-                                    Question Management
-                                </Title>
-                            </div>
-                        </div>
-                        {/* Add Question Button */}
-                        <Button
-                            type="primary"
-                            size="large"
-                            onClick={() => setIsAddModalVisible(true)}
-                            className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 h-12 font-semibold"
-                        >
-                            <FontAwesomeIcon icon={faPlus} className="mr-2" />
-                            Add New Question
+        <div className="w-full max-w-full overflow-x-hidden">
+            <Card className="mb-4 rounded-2xl shadow-sm border-gray-100">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Button type="text" onClick={onBack} className="flex items-center gap-2">
+                            <FontAwesomeIcon icon={faArrowLeft} />
+                            Quay lại
                         </Button>
-                    </div>
-                </Card>
-
-                {/* Questions List - Now Full Width */}
-                <Card className="rounded-2xl shadow-sm border-gray-100">
-                    <div className="flex items-center justify-between mb-6">
-                        <Title level={3} className="!mb-0 !text-gray-800">
-                            <FontAwesomeIcon icon={faList} className="mr-2 text-green-600" />
-                            Existing Questions ({questions.length})
+                        <Title level={3} className="!mb-0">
+                            <FontAwesomeIcon icon={faQuestionCircle} className="mr-2 text-blue-600" />
+                            Quản lý đề thi
                         </Title>
                     </div>
+                    <Button
+                        type="primary"
+                        icon={<FontAwesomeIcon icon={faPlus} />}
+                        onClick={() => setIsCreateExamModalVisible(true)}
+                    >
+                        Tạo đề thi mới
+                    </Button>
+                </div>
+            </Card>
 
-                    <Table
-                        columns={columns}
-                        dataSource={questions}
-                        rowKey="id"
-                        loading={loadingQuestions}
-                        scroll={{ x: 'max-content' }}
-                        pagination={{
-                            pageSize: 10,
-                            showSizeChanger: false,
-                            className: "mt-4"
+            {/* Danh sách đề thi */}
+            <Card className="mb-4 rounded-2xl shadow-sm border-gray-100">
+                <Title level={4} className="mb-4">Danh sách đề thi ({exams.length})</Title>
+                {loadingExam ? (
+                    <div className="text-center py-8">Đang tải...</div>
+                ) : exams.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                        Chưa có đề thi nào. Hãy tạo đề thi mới!
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {exams.map((exam) => (
+                            <div
+                                key={exam.id}
+                                className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedExam?.id === exam.id
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-gray-200 hover:border-gray-300'
+                                    }`}
+                                onClick={() => handleSelectExam(exam)}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Title level={5} className="!mb-0">{exam.title}</Title>
+                                            <Tag color={exam.published ? 'green' : 'default'}>
+                                                {exam.published ? 'Đã công bố' : 'Chưa công bố'}
+                                            </Tag>
+                                        </div>
+                                        {exam.description && (
+                                            <Text className="text-gray-600">{exam.description}</Text>
+                                        )}
+                                        <div className="mt-2 text-sm text-gray-500">
+                                            {exam.questions?.length || 0} câu hỏi
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 ml-4">
+                                        <span className="text-sm text-gray-600">Công bố:</span>
+                                        <Switch
+                                            checked={exam.published}
+                                            onChange={(checked) => handlePublishToggle(checked, exam.id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </Card>
+
+            {selectedExam && (
+                <>
+                    <Card className="rounded-2xl shadow-sm border-gray-100 mb-4">
+                        <Tabs
+                            activeKey={activeTab}
+                            onChange={(key) => {
+                                setActiveTab(key);
+                                if (key === 'submissions') {
+                                    fetchSubmissions(selectedExam.id);
+                                }
+                            }}
+                            items={[
+                                {
+                                    key: 'questions',
+                                    label: (
+                                        <span>
+                                            <FontAwesomeIcon icon={faQuestionCircle} className="mr-2" />
+                                            Câu hỏi ({questions.length})
+                                        </span>
+                                    ),
+                                    children: (
+                                        <>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <Title level={4} className="!mb-0">
+                                                    Câu hỏi của đề thi: {selectedExam.title}
+                                                </Title>
+                                                <Button
+                                                    type="primary"
+                                                    icon={<FontAwesomeIcon icon={faPlus} />}
+                                                    onClick={() => setIsAddModalVisible(true)}
+                                                >
+                                                    Thêm câu hỏi
+                                                </Button>
+                                            </div>
+                                            <Table
+                                                columns={columns}
+                                                dataSource={questions}
+                                                rowKey="id"
+                                                loading={loadingExam}
+                                                pagination={{ pageSize: 10 }}
+                                            />
+                                        </>
+                                    )
+                                },
+                                {
+                                    key: 'submissions',
+                                    label: (
+                                        <span>
+                                            <FontAwesomeIcon icon={faUsers} className="mr-2" />
+                                            Bài làm ({submissions.length})
+                                        </span>
+                                    ),
+                                    children: (
+                                        <>
+                                            <div className="mb-3">
+                                                <Title level={4} className="!mb-0">
+                                                    Danh sách bài làm của đề thi: {selectedExam.title}
+                                                </Title>
+                                            </div>
+                                            <Table
+                                                columns={submissionColumns}
+                                                dataSource={submissions}
+                                                rowKey="id"
+                                                loading={loadingSubmissions}
+                                                pagination={{ pageSize: 10 }}
+                                            />
+                                        </>
+                                    )
+                                }
+                            ]}
+                        />
+                    </Card>
+
+                    <Modal
+                        title="Thêm câu hỏi"
+                        open={isAddModalVisible}
+                        onCancel={() => {
+                            setIsAddModalVisible(false);
+                            form.resetFields();
                         }}
-                        className="rounded-lg border border-gray-200"
-                    />
-                </Card>
+                        footer={null}
+                        width={900}
+                    >
+                        <QuestionForm
+                            form={form}
+                            onFinish={handleSubmit}
+                            loading={loading}
+                            submitText="Thêm câu hỏi"
+                        />
+                    </Modal>
 
-                {/* Add Question Modal */}
-                <Modal
-                    title={
-                        <div className="flex items-center gap-3">
-                            <FontAwesomeIcon icon={faPlus} className="text-blue-600" />
-                            <span>Add New Question</span>
-                        </div>
-                    }
-                    open={isAddModalVisible}
-                    onCancel={() => {
-                        setIsAddModalVisible(false);
-                        form.resetFields();
-                    }}
-                    footer={null}
-                    width="90%"
-                    style={{ maxWidth: 800 }}
-                    className="rounded-2xl"
-                >
-                    <QuestionForm
-                        form={form}
-                        onFinish={handleSubmit}
-                        loading={loading}
-                        submitText={loading ? 'Adding...' : 'Add Question'}
-                    />
-                </Modal>
+                    <Modal
+                        title="Chỉnh sửa câu hỏi"
+                        open={isEditModalVisible}
+                        onCancel={() => {
+                            setIsEditModalVisible(false);
+                            setEditingQuestion(null);
+                        }}
+                        footer={null}
+                        width={900}
+                    >
+                        <QuestionForm
+                            form={editForm}
+                            onFinish={handleEditSubmit}
+                            loading={loading}
+                            submitText="Lưu thay đổi"
+                        />
+                    </Modal>
 
-                {/* Edit Modal */}
-                <Modal
-                    title={
-                        <div className="flex items-center gap-3">
-                            <FontAwesomeIcon icon={faEdit} className="text-blue-600" />
-                            <span>Edit Question</span>
-                        </div>
-                    }
-                    open={isEditModalVisible}
-                    onCancel={() => {
-                        setIsEditModalVisible(false);
-                        setEditingQuestion(null);
-                        editForm.resetFields();
-                    }}
-                    footer={null}
-                    width="90%"
-                    style={{ maxWidth: 800 }}
-                    className="rounded-2xl"
-                >
-                    <QuestionForm
-                        form={editForm}
-                        onFinish={handleEditSubmit}
-                        loading={false}
-                        submitText="Update Question"
-                    />
-                </Modal>
-            </div>
+                    <Modal
+                        title="Tạo đề thi mới"
+                        open={isCreateExamModalVisible}
+                        onCancel={() => {
+                            setIsCreateExamModalVisible(false);
+                            examForm.resetFields();
+                        }}
+                        footer={null}
+                        width={600}
+                    >
+                        <Form layout="vertical" form={examForm} onFinish={handleCreateExam}>
+                            <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, message: 'Nhập tiêu đề' }]}>
+                                <Input placeholder="Ví dụ: Kiểm tra giữa khóa" />
+                            </Form.Item>
+                            <Form.Item name="description" label="Mô tả">
+                                <TextArea rows={3} />
+                            </Form.Item>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                                <Button onClick={() => {
+                                    setIsCreateExamModalVisible(false);
+                                    examForm.resetFields();
+                                }}>
+                                    Hủy
+                                </Button>
+                                <Button type="primary" htmlType="submit" loading={loading} icon={<FontAwesomeIcon icon={faPaperPlane} />}>
+                                    Tạo đề thi
+                                </Button>
+                            </div>
+                        </Form>
+                    </Modal>
+
+                    {/* Modal chi tiết bài làm */}
+                    <Modal
+                        title="Chi tiết bài làm"
+                        open={isSubmissionDetailVisible}
+                        onCancel={() => {
+                            setIsSubmissionDetailVisible(false);
+                            setSelectedSubmission(null);
+                        }}
+                        footer={null}
+                        width={900}
+                    >
+                        {selectedSubmission && (
+                            <div className="space-y-4">
+                                <Descriptions bordered column={2}>
+                                    <Descriptions.Item label="Học viên">
+                                        {selectedSubmission.user?.username || selectedSubmission.user?.email || 'N/A'}
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Điểm">
+                                        <Text strong className="text-lg">
+                                            {selectedSubmission.totalScore || 0} / {selectedSubmission.maxScore || 0}
+                                        </Text>
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Tỷ lệ">
+                                        {(() => {
+                                            const percent = selectedSubmission.maxScore > 0
+                                                ? Math.round((selectedSubmission.totalScore / selectedSubmission.maxScore) * 100)
+                                                : 0;
+                                            return (
+                                                <Tag color={percent >= 60 ? 'green' : percent >= 40 ? 'orange' : 'red'}>
+                                                    {percent}%
+                                                </Tag>
+                                            );
+                                        })()}
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Trạng thái">
+                                        <Badge
+                                            status={selectedSubmission.passed ? 'success' : 'error'}
+                                            text={selectedSubmission.passed ? 'Đạt' : 'Chưa đạt'}
+                                        />
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Thời gian nộp" span={2}>
+                                        {selectedSubmission.submittedAt
+                                            ? new Date(selectedSubmission.submittedAt).toLocaleString('vi-VN')
+                                            : 'N/A'}
+                                    </Descriptions.Item>
+                                </Descriptions>
+
+                                <div className="mt-4">
+                                    <Title level={5}>Chi tiết từng câu hỏi:</Title>
+                                    <div className="space-y-4 mt-2">
+                                        {selectedSubmission.answers?.map((answer, idx) => {
+                                            const question = answer.question;
+                                            return (
+                                                <Card key={answer.id} size="small" className="border-l-4 border-l-blue-500">
+                                                    <div className="mb-2">
+                                                        <Text strong>Câu {idx + 1}: {question?.prompt}</Text>
+                                                        <div className="mt-1">
+                                                            <Tag color={question?.type === 'CODE' ? 'purple' : 'blue'}>
+                                                                {question?.type === 'CODE' ? 'Code' : 'Trắc nghiệm'}
+                                                            </Tag>
+                                                            <Tag color={answer.passed ? 'green' : 'red'}>
+                                                                {answer.passed ? 'Đúng' : 'Sai'}
+                                                            </Tag>
+                                                            <Text className="ml-2">
+                                                                Điểm: {answer.score || 0} / {question?.maxScore || 1}
+                                                            </Text>
+                                                        </div>
+                                                    </div>
+                                                    {question?.type === 'MCQ' ? (
+                                                        <div className="mt-2">
+                                                            <Text className="text-gray-600">Đáp án học viên chọn: </Text>
+                                                            <Text strong>{answer.selectedOption || 'Chưa chọn'}</Text>
+                                                            <br />
+                                                            <Text className="text-gray-600">Đáp án đúng: </Text>
+                                                            <Text strong className="text-green-600">{question.answer}</Text>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mt-2">
+                                                            <Text className="text-gray-600 block mb-1">Code học viên:</Text>
+                                                            <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto">
+                                                                {answer.codeAnswer || 'Chưa có code'}
+                                                            </pre>
+                                                            {answer.autoResult && (
+                                                                <div className="mt-2">
+                                                                    <Text className="text-gray-600 block mb-1">Kết quả chạy test:</Text>
+                                                                    <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto">
+                                                                        {JSON.stringify(JSON.parse(answer.autoResult), null, 2)}
+                                                                    </pre>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </Card>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Modal>
+                </>
+            )}
         </div>
     );
 }

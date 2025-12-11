@@ -44,6 +44,7 @@ public class PaymentService {
     private final CourseRepository courseRepository;
     private final LearningService learningService;
     private final VnPayProperties vnPayProperties;
+    private final NotificationService notificationService;
 
     public PaymentUrlResponse createPayment(PaymentRequest request, String clientIp) {
         User user = userRepository.findById(request.getUserId())
@@ -316,6 +317,8 @@ public class PaymentService {
             paymentRepository.save(payment);
             try {
                 learningService.enrollUserInCourse(payment.getUser(), payment.getCourse());
+                // Tạo thông báo cho user, instructor và admin
+                notificationService.notifyPaymentSuccess(payment);
             } catch (Exception e) {
                 log.error("Enroll user after payment failed", e);
             }

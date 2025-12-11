@@ -38,7 +38,6 @@ const Performance = () => {
 
     const handleCertificateDownload = async (courseId) => {
         setDownloadingCert(courseId);
-
         console.log(courseId);
 
         navigate(`/certificate/${courseId}`);

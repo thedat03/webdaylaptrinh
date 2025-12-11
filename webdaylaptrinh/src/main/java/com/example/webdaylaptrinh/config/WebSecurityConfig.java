@@ -52,7 +52,7 @@ public class WebSecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/payments/vnpay-return", "/api/payments/vnpay-ipn").permitAll()
-                        
+
                         // Courses
                         .requestMatchers(HttpMethod.GET, "/api/courses/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/files/**").permitAll()
@@ -85,10 +85,23 @@ public class WebSecurityConfig {
                         .requestMatchers("/api/learning/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers("/api/progress/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers("/api/questions/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
-                        
+
                         // Code execution endpoints - require authentication
                         .requestMatchers("/api/code/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
-                        
+
+                        // Exams - giáo viên tạo/quản lý, học viên làm bài
+                        .requestMatchers(HttpMethod.GET, "/api/courses/*/exams/published").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/courses/*/exams/owner").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.POST, "/api/courses/*/exams").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/exams/**").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.POST, "/api/exams/*/questions").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/exams/questions/**").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/exams/questions/**").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.GET, "/api/exams/*/submissions/**").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.POST, "/api/exams/*/questions/*/run").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.POST, "/api/exams/*/submit").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/exams/*/my-submission").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+
                         // Comments - GET public, POST/PUT/DELETE authenticated
                         // Admin endpoints - đặt trước pattern tổng quát
                         .requestMatchers(HttpMethod.GET, "/api/comments/all").hasRole("ADMIN")
@@ -123,4 +136,3 @@ public class WebSecurityConfig {
         return source;
     }
 }
-

@@ -23,13 +23,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        // Kiểm tra nếu request có skipAuthRedirect flag thì không redirect
+        // Hoặc nếu đang ở trong notification dropdown
+        const skipRedirect = error.config?.skipAuthRedirect ||
+            error.config?.metadata?.skipAuthRedirect ||
+            error.config?.headers?.['X-Skip-Auth-Redirect'];
+
+        if (error.response?.status === 401 && !skipRedirect) {
             message.destroy()
             message.error("Session expired or unauthorized. Please log in again.");
             localStorage.clear();
             setTimeout(() => {
                 window.location.href = "/login";
             }, 1000);
+        } else if (error.response?.status === 401 && skipRedirect) {
+            // Vẫn reject error nhưng không redirect
+            return Promise.reject(error);
         } else if (error.response?.status === 403) {
             message.error("You don’t have permission to perform this action.");
         } else if (error.response?.status === 404) {

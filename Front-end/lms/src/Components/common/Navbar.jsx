@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import logo from "../../assets/images/logo.jpg";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faUser, faSearch, faEnvelope, faShoppingCart, faBell, faBars, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
+import { faUser, faSearch, faEnvelope, faShoppingCart, faBell, faBars, faRightFromBracket, faComments } from "@fortawesome/free-solid-svg-icons";
 import { authService } from "../../api/auth.service";
+import { messageService } from "../../api/message.service";
+import { notificationService } from "../../api/notification.service";
+import NotificationDropdown from "./NotificationDropdown";
 
 function Navbar() {
     const navigate = useNavigate();
@@ -14,6 +17,10 @@ function Navbar() {
         authService.isAdminAuthenticated()
     );
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+    const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
+    const notificationButtonRef = useRef(null);
 
     // Update authentication state when component mounts or when navigating
     useEffect(() => {
@@ -29,6 +36,46 @@ function Navbar() {
         window.addEventListener('storage', checkAuth);
         return () => window.removeEventListener('storage', checkAuth);
     }, []);
+
+    // Load unread message count
+    useEffect(() => {
+        if (isAuthenticated) {
+            const loadUnreadCount = async () => {
+                try {
+                    const result = await messageService.getUnreadCount();
+                    if (result.success) {
+                        setUnreadCount(result.data || 0);
+                    }
+                } catch (error) {
+                    console.error("Error loading unread count:", error);
+                }
+            };
+            loadUnreadCount();
+            // Refresh every 30 seconds
+            const interval = setInterval(loadUnreadCount, 30000);
+            return () => clearInterval(interval);
+        }
+    }, [isAuthenticated]);
+
+    // Load unread notification count
+    useEffect(() => {
+        if (isAuthenticated) {
+            const loadNotificationCount = async () => {
+                try {
+                    const result = await notificationService.getUnreadCount();
+                    if (result.success) {
+                        setNotificationUnreadCount(result.data || 0);
+                    }
+                } catch (error) {
+                    console.error("Error loading notification count:", error);
+                }
+            };
+            loadNotificationCount();
+            // Refresh every 30 seconds
+            const interval = setInterval(loadNotificationCount, 30000);
+            return () => clearInterval(interval);
+        }
+    }, [isAuthenticated]);
 
     const getHomePath = () => {
         const role = localStorage.getItem("role");
@@ -73,15 +120,56 @@ function Navbar() {
 
                     {/* Right icons */}
                     <div className="ml-auto hidden md:flex items-center gap-3">
+                        {isAuthenticated && (
+                            <button
+                                onClick={() => navigate("/chat")}
+                                className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center hover:bg-indigo-100 relative"
+                                aria-label="Chat"
+                            >
+                                <FontAwesomeIcon icon={faComments} />
+                                {unreadCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </button>
+                        )}
                         <button className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center hover:bg-indigo-100" aria-label="Liên hệ">
                             <FontAwesomeIcon icon={faEnvelope} />
                         </button>
                         <button className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center hover:bg-indigo-100" aria-label="Giỏ hàng">
                             <FontAwesomeIcon icon={faShoppingCart} />
                         </button>
-                        <button className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center hover:bg-indigo-100" aria-label="Thông báo">
-                            <FontAwesomeIcon icon={faBell} />
-                        </button>
+                        <div className="relative">
+                            <button
+                                ref={notificationButtonRef}
+                                onClick={() => setIsNotificationDropdownOpen(!isNotificationDropdownOpen)}
+                                className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center hover:bg-indigo-100 relative"
+                                aria-label="Thông báo"
+                            >
+                                <FontAwesomeIcon icon={faBell} />
+                                {notificationUnreadCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                        {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+                                    </span>
+                                )}
+                            </button>
+                            <NotificationDropdown
+                                isOpen={isNotificationDropdownOpen}
+                                onClose={() => {
+                                    setIsNotificationDropdownOpen(false);
+                                    // Refresh notification count when dropdown closes
+                                    if (isAuthenticated) {
+                                        notificationService.getUnreadCount().then(result => {
+                                            if (result.success) {
+                                                setNotificationUnreadCount(result.data || 0);
+                                            }
+                                        });
+                                    }
+                                }}
+                                buttonRef={notificationButtonRef}
+                            />
+                        </div>
                         {isAuthenticated ? (
                             <>
                                 <button
@@ -130,6 +218,28 @@ function Navbar() {
                         <div className="flex gap-3 mb-3">
                             {isAuthenticated ? (
                                 <>
+                                    <button onClick={() => { closeMobileMenu(); navigate("/chat"); }} className="flex-1 px-4 py-2 rounded-md border relative">
+                                        Chat
+                                        {unreadCount > 0 && (
+                                            <span className="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                                {unreadCount > 9 ? '9+' : unreadCount}
+                                            </span>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            closeMobileMenu();
+                                            setIsNotificationDropdownOpen(true);
+                                        }}
+                                        className="flex-1 px-4 py-2 rounded-md border relative"
+                                    >
+                                        Thông báo
+                                        {notificationUnreadCount > 0 && (
+                                            <span className="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                                {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+                                            </span>
+                                        )}
+                                    </button>
                                     <button onClick={() => { closeMobileMenu(); navigate("/profile"); }} className="flex-1 px-4 py-2 rounded-md border">Hồ sơ</button>
                                     <button onClick={handleLogOut} className="flex-1 px-4 py-2 rounded-md bg-indigo-600 text-white">Đăng xuất</button>
                                 </>

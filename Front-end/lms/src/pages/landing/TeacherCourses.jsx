@@ -256,7 +256,7 @@ function TeacherCourses() {
                                                 <FontAwesomeIcon icon={faUsers} className="text-sm" /> Học viên
                                             </button>
                                             <button
-                                                onClick={() => navigate(`/admin?tab=courses&courseId=${course.course_id}`)}
+                                                onClick={() => navigate(`/addquestions/${course.course_id}`)}
                                                 className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg"
                                             >
                                                 <FontAwesomeIcon icon={faClipboardList} className="text-sm" /> Đề thi

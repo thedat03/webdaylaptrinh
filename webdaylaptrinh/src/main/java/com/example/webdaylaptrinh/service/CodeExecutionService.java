@@ -87,6 +87,24 @@ public class CodeExecutionService {
         return response;
     }
 
+    /**
+     * Chạy code ad-hoc cho danh sách test case (dùng cho bài thi code).
+     */
+    public List<TestCaseResult> executeAdhocCode(Integer languageId, String sourceCode, List<CodeTestCase> testCases) {
+        List<TestCaseResult> results = new ArrayList<>();
+        for (int i = 0; i < testCases.size(); i++) {
+            CodeTestCase testCase = testCases.get(i);
+            TestCaseResult result = executeSingleTest(
+                    testCase,
+                    sourceCode,
+                    languageId,
+                    i
+            );
+            results.add(result);
+        }
+        return results;
+    }
+
     private List<CodeTestCase> loadTestCases(Lesson lesson) {
         if (!StringUtils.hasText(lesson.getCodeTestCases())) {
             return Collections.emptyList();
@@ -122,7 +140,7 @@ public class CodeExecutionService {
         }
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
-        
+
         TestCaseResult result = new TestCaseResult();
         result.setName(StringUtils.hasText(testCase.getName()) ? testCase.getName() : "Test " + (index + 1));
         result.setExpectedOutput(testCase.getExpectedOutput());
@@ -178,5 +196,4 @@ public class CodeExecutionService {
         return base + "/submissions?base64_encoded=false&wait=true";
     }
 }
-
 

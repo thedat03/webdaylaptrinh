@@ -21,6 +21,8 @@ import Forum from './pages/course/forum';
 import AdminDashboard from './pages/dashBoard/AdminDashboard';
 import LessonViewer from './pages/learning/LessonViewer';
 import PaymentResult from './pages/payment/PaymentResult';
+import Chat from './pages/chat/Chat';
+import Notifications from './pages/notifications/Notifications';
 
 function App() {
   return (
@@ -41,13 +43,15 @@ function App() {
           <Route path='/course/:id' element={<Course />} />
           <Route path='/discussion/:id' element={<Forum />} />
           <Route path='/certificate/:courseId' element={<Certificate />} />
-          <Route path='/assessment/:id' element={<Assessment />} />
+          <Route path='/assessment/:id/:examId?' element={<Assessment />} />
           <Route path='/profile' element={<Profile />} />
           <Route path='/Learnings' element={<Learnings />} />
           <Route path='/lesson/:lessonId' element={<LessonViewer />} />
           <Route path='/payment-result' element={<PaymentResult />} />
           <Route path='/Dcourses' element={<DCourses />} />
           <Route path='/Performance' element={<Performance />} />
+          <Route path='/chat' element={<Chat />} />
+          <Route path='/notifications' element={<Notifications />} />
           <Route path='*' element={<ErrorPage />} />
         </Routes>
       </BrowserRouter>

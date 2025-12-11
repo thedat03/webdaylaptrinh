@@ -10,6 +10,7 @@ import com.example.webdaylaptrinh.repository.CourseRepository;
 import com.example.webdaylaptrinh.repository.LessonRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +22,7 @@ public class CurriculumService {
     private final CourseRepository courseRepository;
     private final CourseModuleRepository moduleRepository;
     private final LessonRepository lessonRepository;
+    private final NotificationService notificationService;
 
     public List<CourseModule> getModules(UUID courseId) {
         Course course = courseRepository.findById(courseId).orElse(null);
@@ -54,8 +56,11 @@ public class CurriculumService {
         return lessonRepository.findByModuleOrderByPositionAsc(module);
     }
 
+    @Transactional
     public Lesson addLesson(UUID moduleId, LessonRequest request) {
         CourseModule module = moduleRepository.findById(moduleId).orElseThrow();
+        Course course = module.getCourse();
+        
         Lesson lesson = new Lesson();
         lesson.setModule(module);
         lesson.setTitle(request.getTitle());
@@ -67,11 +72,25 @@ public class CurriculumService {
         lesson.setPosition(request.getPosition() == null ? 0 : request.getPosition());
         lesson.setCodeLanguageId(request.getCodeLanguageId());
         lesson.setCodeTestCases(request.getCodeTestCases());
-        return lessonRepository.save(lesson);
+        Lesson savedLesson = lessonRepository.save(lesson);
+        
+        // Thông báo cho tất cả học viên đã mua khóa học
+        if (course != null) {
+            notificationService.notifyNewLesson(course, request.getTitle());
+        }
+        
+        return savedLesson;
     }
 
+    @Transactional
     public Lesson updateLesson(UUID lessonId, LessonRequest request) {
         Lesson lesson = lessonRepository.findById(lessonId).orElseThrow();
+        CourseModule module = lesson.getModule();
+        Course course = module != null ? module.getCourse() : null;
+        
+        boolean titleChanged = request.getTitle() != null && !request.getTitle().equals(lesson.getTitle());
+        String oldTitle = lesson.getTitle();
+        
         if (request.getTitle() != null) lesson.setTitle(request.getTitle());
         if (request.getType() != null) lesson.setType(request.getType());
         if (request.getContentUrl() != null) lesson.setContentUrl(request.getContentUrl());
@@ -81,7 +100,17 @@ public class CurriculumService {
         if (request.getPosition() != null) lesson.setPosition(request.getPosition());
         if (request.getCodeLanguageId() != null) lesson.setCodeLanguageId(request.getCodeLanguageId());
         if (request.getCodeTestCases() != null) lesson.setCodeTestCases(request.getCodeTestCases());
-        return lessonRepository.save(lesson);
+        Lesson savedLesson = lessonRepository.save(lesson);
+        
+        // Thông báo cho học viên nếu có thay đổi quan trọng
+        if (course != null) {
+            String updateMessage = titleChanged 
+                ? String.format("Bài học \"%s\" đã được cập nhật thành \"%s\"", oldTitle, request.getTitle())
+                : "Nội dung bài học đã được cập nhật";
+            notificationService.notifyCourseUpdate(course, updateMessage);
+        }
+        
+        return savedLesson;
     }
 
     public void deleteLesson(UUID lessonId) {

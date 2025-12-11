@@ -266,7 +266,7 @@ function Courses() {
                                             </div>
                                             {/* Actions */}
                                             <div className="flex items-center gap-2 ml-6">
-                                                <button onClick={() => addQuestions(course.course_id)} className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg" >
+                                                <button onClick={() => window.location.href = `/addquestions/${course.course_id}`} className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg" >
                                                     <FontAwesomeIcon icon={faClipboardList} className="text-sm" /> Quản lý đề thi </button>
                                                 <button onClick={() => toggleCurriculum(course.course_id)} className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg" >
                                                     <FontAwesomeIcon icon={faSitemap} className="text-sm" /> Giáo trình
