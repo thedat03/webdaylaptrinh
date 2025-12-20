@@ -18,6 +18,7 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
     const [type, setType] = useState("VIDEO");
     const [moduleId, setModuleId] = useState(defaultModuleId || null);
     const [position, setPosition] = useState(1);
+    const [durationMinutes, setDurationMinutes] = useState(15);
     const [contentUrl, setContentUrl] = useState("");
     const [description, setDescription] = useState("");
     const [codeSnippet, setCodeSnippet] = useState("");
@@ -34,6 +35,7 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
         setType(initialData?.type || "VIDEO");
         setModuleId(initialData?.module_id || defaultModuleId || null);
         setPosition(initialData?.position || 1);
+        setDurationMinutes(initialData?.durationMinutes ?? initialData?.duration ?? 15);
         setContentUrl(initialData?.contentUrl || "");
         setDescription(initialData?.description || "");
         setCodeSnippet(initialData?.codeSnippet || "");
@@ -92,8 +94,14 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
     const handleSubmit = async () => {
         if (!title.trim()) return message.error("Vui lòng nhập tiêu đề bài học");
         if (!moduleId) return message.error("Vui lòng chọn chương");
+        if (durationMinutes < 0) return message.error("Thời lượng phải lớn hơn hoặc bằng 0");
 
-        const base = { title: title.trim(), type, position: Number(position) || 1 };
+        const base = {
+            title: title.trim(),
+            type,
+            position: Number(position) || 1,
+            durationMinutes: Number(durationMinutes) || 0,
+        };
         let payload = base;
         if (type === "VIDEO") {
             payload = { ...base, contentUrl: contentUrl.trim(), description: description.trim() };
@@ -164,6 +172,17 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
                 <div>
                     <label className="block text-sm font-medium mb-1">Vị trí</label>
                     <input type="number" value={position} onChange={(e) => setPosition(e.target.value)} className="w-full border rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium mb-1">Thời lượng (phút)</label>
+                    <input
+                        type="number"
+                        min="0"
+                        value={durationMinutes}
+                        onChange={(e) => setDurationMinutes(e.target.value)}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Ví dụ: 15"
+                    />
                 </div>
 
                 {type === "VIDEO" && (

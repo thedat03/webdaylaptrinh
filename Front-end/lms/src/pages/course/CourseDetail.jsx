@@ -39,6 +39,26 @@ function CourseDetail() {
     const [checkingExam, setCheckingExam] = useState(false);
 
     const totalLessons = modules.reduce((sum, m) => sum + ((lessonsByModule[m.module_id] || []).length), 0);
+    const totalDurationMinutes = useMemo(() => {
+        if (course?.totalDurationMinutes !== undefined && course?.totalDurationMinutes !== null) {
+            return course.totalDurationMinutes;
+        }
+        return modules.reduce((sum, m) => {
+            const lessons = lessonsByModule[m.module_id] || [];
+            const moduleSum = lessons.reduce((acc, l) => acc + (Number(l.durationMinutes) || 0), 0);
+            return sum + moduleSum;
+        }, 0);
+    }, [course, modules, lessonsByModule]);
+
+    const formattedDuration = useMemo(() => {
+        const minutes = Number(totalDurationMinutes) || 0;
+        if (minutes <= 0) return "Đang cập nhật";
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        if (hours && mins) return `${hours}h ${mins}m`;
+        if (hours) return `${hours}h`;
+        return `${mins} phút`;
+    }, [totalDurationMinutes]);
     const firstLesson = useMemo(() => {
         for (const module of modules) {
             const lessons = lessonsByModule[module.module_id] || [];
@@ -316,7 +336,7 @@ function CourseDetail() {
                     <div className="flex flex-wrap gap-2 mb-6 text-sm">
                         <span className="px-3 py-1 rounded-full bg-orange-50 text-orange-600 font-medium">{modules.length} chương</span>
                         <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 font-medium">{totalLessons} bài học</span>
-                        <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600">Thời lượng đang cập nhật</span>
+                        <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600">Thời lượng: {formattedDuration}</span>
                     </div>
 
                     {/* Curriculum list */}

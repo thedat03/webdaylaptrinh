@@ -13,6 +13,7 @@ import c6 from "../../assets/images/css.png";
 import bannerImg from "../../assets/images/home-banner.png";
 import userAvatar from "../../assets/images/user.png";
 import { newsService } from "../../api/news.service";
+import { commentService } from "../../api/comment.service";
 import { courseService } from "../../api/course.service";
 import { categoryService } from "../../api/category.service";
 import { bannerService } from "../../api/banner.service";
@@ -22,6 +23,12 @@ function Home() {
     const [bannerSlides, setBannerSlides] = useState([]);
     const [bannerCurrent, setBannerCurrent] = useState(0);
     const [bannersLoading, setBannersLoading] = useState(false);
+
+    const getAvatarUrl = (url) => {
+        if (!url) return userAvatar;
+        if (url.startsWith("http") || url.startsWith("/api/")) return url;
+        return `/api/files/${url}`;
+    };
 
     // removed old countdown effect
 
@@ -54,7 +61,7 @@ function Home() {
             }
         };
         loadBanners();
-    }, []);
+    }, []); // defaultTestimonials is static literal; safe to keep deps empty
 
     // Auto-rotate banners
     useEffect(() => {
@@ -91,6 +98,30 @@ function Home() {
             return `/api/files/${p}`;
         }
         return getThumb(course?.course_name || "");
+    };
+
+    const formatMinutes = (minutes) => {
+        const total = Number(minutes) || 0;
+        if (total <= 0) return "—";
+        const hours = Math.floor(total / 60);
+        const mins = total % 60;
+        if (hours && mins) return `${hours}h ${mins}m`;
+        if (hours) return `${hours}h`;
+        return `${mins} phút`;
+    };
+
+    const getCourseDurationText = (course) => {
+        if (!course) return "—";
+        if (typeof course.totalDurationMinutes === "number") {
+            return formatMinutes(course.totalDurationMinutes);
+        }
+        if (typeof course.duration === "number") {
+            return formatMinutes(course.duration);
+        }
+        if (typeof course.duration === "string" && course.duration.trim().length) {
+            return course.duration;
+        }
+        return "—";
     };
 
     useEffect(() => {
@@ -139,29 +170,46 @@ function Home() {
     }, []);
 
     // Testimonials and news: can be replaced by API later
-    const [testimonials] = useState([
-        {
-            id: 1,
-            name: "Trần Trung Phúc",
-            avatar: userAvatar,
-            info: "Tài khoản : trungphu****@gmail.com • ",
-            quote: "Em cảm ơn thầy, cô nhiều ạ",
-        },
-        {
-            id: 2,
-            name: "Nguyễn Minh Anh",
-            avatar: userAvatar,
-            info: "Học sinh ",
-            quote: "Nội dung rõ ràng, dễ theo dõi, luyện tập nhiều dạng",
-        },
-        {
-            id: 3,
-            name: "Phạm Gia Huy",
-            avatar: userAvatar,
-            info: "Sinh viên năm nhất • ĐH KHTN",
-            quote: "Lộ trình hợp lý, mình theo đến lúc thi rất tự tin",
-        },
-    ]);
+    const [testimonials, setTestimonials] = useState([]);
+    const [testimonialIndex, setTestimonialIndex] = useState(0);
+
+    // Auto-rotate testimonials
+    useEffect(() => {
+        if (!testimonials.length) return;
+        const t = setInterval(() => {
+            setTestimonialIndex((p) => (p + 1) % testimonials.length);
+        }, 6000);
+        return () => clearInterval(t);
+    }, [testimonials.length]);
+
+    // Load testimonials from comments API
+    useEffect(() => {
+        const loadTestimonials = async () => {
+            try {
+                const res = await commentService.getFeaturedComments(6);
+                if (res.success && Array.isArray(res.data) && res.data.length) {
+                    const mapped = res.data.map((c, idx) => ({
+                        id: c.commentId || c.id || idx,
+                        name: c.userName || c.user?.username || c.user?.fullName || "Học viên",
+                        avatar: getAvatarUrl(c.avatarUrl || c.user?.avatar),
+                        info: c.courseName
+                            ? `Khóa: ${c.courseName}`
+                            : "Học viên",
+                        quote: c.content || "Không có nội dung",
+                        rating: c.rating,
+                    }));
+                    setTestimonials(mapped);
+                    setTestimonialIndex(0);
+                } else {
+                    setTestimonials([]);
+                }
+            } catch (e) {
+                console.error("Error loading featured comments", e);
+                setTestimonials([]);
+            }
+        };
+        loadTestimonials();
+    }, []);
 
     const [newsItems, setNewsItems] = useState([]);
 
@@ -223,9 +271,9 @@ function Home() {
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-2 text-[13px] text-gray-600">
-                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faClock} className="text-indigo-500" /> <span>{course.duration || '—'}</span></div>
-                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faPlayCircle} className="text-indigo-500" /> <span>{course.lessonsCount || course.numLessons || 0} bài giảng</span></div>
-                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faQuestionCircle} className="text-indigo-500" /> <span>{course.questionsCount || course.numQuestions || 0} câu hỏi</span></div>
+                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faClock} className="text-indigo-500" /> <span>{getCourseDurationText(course)}</span></div>
+                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faPlayCircle} className="text-indigo-500" /> <span>{course.lessonsCount ?? course.numLessons ?? 0} bài giảng</span></div>
+                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faQuestionCircle} className="text-indigo-500" /> <span>{course.questionsCount ?? course.numQuestions ?? 0} câu hỏi</span></div>
                     <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faStar} className="text-yellow-500" /> <span>{(course.rating || 0).toFixed ? (course.rating || 0).toFixed(1) : (course.rating || 0)}</span></div>
                 </div>
 
@@ -564,33 +612,40 @@ function Home() {
                     {/* Testimonials */}
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 hover:shadow-2xl transition-shadow duration-300">
                         <h3 className="text-2xl font-extrabold mb-6 text-gray-900">Cảm nhận học viên</h3>
-                        <div className="flex gap-5 items-start">
-                            <img
-                                src={testimonials[bannerCurrent % testimonials.length]?.avatar}
-                                alt="avatar"
-                                className="h-24 w-24 rounded-full object-cover border-4 border-indigo-100 shadow-md"
-                            />
-                            <div className="flex-1">
-                                <div className="font-bold text-lg text-gray-900 mb-1">{testimonials[bannerCurrent % testimonials.length]?.name}</div>
-                                <div className="text-gray-600 text-sm mb-4">{testimonials[bannerCurrent % testimonials.length]?.info}</div>
-                                <blockquote className="text-gray-800 text-lg leading-relaxed italic border-l-4 border-indigo-500 pl-4">
-                                    "{testimonials[bannerCurrent % testimonials.length]?.quote}"
-                                </blockquote>
-                            </div>
-                        </div>
-                        <div className="mt-6 flex gap-2 justify-center">
-                            {testimonials.map((t, idx) => (
-                                <button
-                                    key={t.id}
-                                    onClick={() => setBannerCurrent(idx)}
-                                    className={`h-2.5 rounded-full transition-all duration-300 ${bannerCurrent % testimonials.length === idx
-                                        ? "bg-indigo-600 w-8"
-                                        : "bg-gray-300 w-2.5 hover:bg-gray-400"
-                                        }`}
-                                    aria-label={`testimonial-${idx + 1}`}
-                                />
-                            ))}
-                        </div>
+                        {testimonials.length > 0 ? (
+                            <>
+                                <div className="flex gap-5 items-start">
+                                    <img
+                                        src={getAvatarUrl(testimonials[testimonialIndex]?.avatar)}
+                                        alt="avatar"
+                                        className="h-24 w-24 rounded-full object-cover border-4 border-indigo-100 shadow-md"
+                                        onError={(e) => { e.target.onerror = null; e.target.src = userAvatar; }}
+                                    />
+                                    <div className="flex-1">
+                                        <div className="font-bold text-lg text-gray-900 mb-1">{testimonials[testimonialIndex]?.name}</div>
+                                        <div className="text-gray-600 text-sm mb-4">{testimonials[testimonialIndex]?.info}</div>
+                                        <blockquote className="text-gray-800 text-lg leading-relaxed italic border-l-4 border-indigo-500 pl-4">
+                                            "{testimonials[testimonialIndex]?.quote}"
+                                        </blockquote>
+                                    </div>
+                                </div>
+                                <div className="mt-6 flex gap-2 justify-center">
+                                    {testimonials.map((t, idx) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setTestimonialIndex(idx)}
+                                            className={`h-2.5 rounded-full transition-all duration-300 ${testimonialIndex === idx
+                                                ? "bg-indigo-600 w-8"
+                                                : "bg-gray-300 w-2.5 hover:bg-gray-400"
+                                                }`}
+                                            aria-label={`testimonial-${idx + 1}`}
+                                        />
+                                    ))}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="text-center text-gray-500 py-6">Chưa có cảm nhận nào</div>
+                        )}
                     </div>
 
                     {/* Education news - dynamic featured */}

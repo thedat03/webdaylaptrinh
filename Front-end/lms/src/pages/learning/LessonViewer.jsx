@@ -274,6 +274,24 @@ export default function LessonViewer() {
     const navigate = useNavigate();
     const { state } = useLocation();
 
+    const formatMinutes = (minutes) => {
+        const total = Number(minutes) || 0;
+        if (total <= 0) return "—";
+        const hours = Math.floor(total / 60);
+        const mins = total % 60;
+        if (hours && mins) return `${hours}:${mins.toString().padStart(2, "0")}`;
+        if (hours) return `${hours}:00`;
+        return `${mins} phút`;
+    };
+
+    const getLessonDuration = (l) => {
+        if (!l) return "—";
+        if (typeof l.durationMinutes === "number") return formatMinutes(l.durationMinutes);
+        if (typeof l.duration === "number") return formatMinutes(l.duration);
+        if (typeof l.duration === "string" && l.duration.trim().length) return l.duration;
+        return "—";
+    };
+
     // --- State & Logic (Giữ nguyên) ---
     const lesson = state?.lesson || null;
     const modules = useMemo(() => state?.modules || [], [state]);
@@ -932,7 +950,12 @@ export default function LessonViewer() {
                                     >
                                         <div className="text-left">
                                             <h4 className="font-semibold text-sm text-[#333]">{m.position}. {m.title}</h4>
-                                            <span className="text-[11px] text-gray-500">{completedInModule}/{totalInModule} | {lessons.reduce((acc, l) => acc + (parseInt(l.duration) || 0), 0)}p</span>
+                                            <span className="text-[11px] text-gray-500">
+                                                {completedInModule}/{totalInModule} |{" "}
+                                                {formatMinutes(
+                                                    lessons.reduce((acc, l) => acc + (Number(l.durationMinutes) || Number(l.duration) || 0), 0)
+                                                )}
+                                            </span>
                                         </div>
                                         <span className={`text-gray-500 transform transition-transform ${isOpen ? 'rotate-180' : ''}`}>
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
@@ -967,7 +990,7 @@ export default function LessonViewer() {
                                                             </p>
                                                             <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-500">
                                                                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>
-                                                                {l.duration || "05:30"}
+                                                                {getLessonDuration(l)}
                                                             </div>
                                                         </div>
                                                         {l.type === "CODE" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 h-fit font-mono">Code</span>}

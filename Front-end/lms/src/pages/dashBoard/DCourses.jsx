@@ -310,6 +310,9 @@ function Courses() {
                                                                                 <span className="inline-block w-2 h-2 rounded-full bg-indigo-500" />
                                                                                 <span>{l.title}</span>
                                                                                 <span className="ml-2 text-[10px] uppercase text-gray-500">{l.type}</span>
+                                                                                <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                                                    {l.durationMinutes ? `${l.durationMinutes}p` : "—"}
+                                                                                </span>
                                                                             </div>
                                                                             <div className="flex items-center gap-2">
                                                                                 <button onClick={() => openEditLesson(l, m)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 shadow-sm">Sửa</button>

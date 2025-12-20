@@ -187,6 +187,16 @@ async function getPendingComments() {
     }
 }
 
+async function getFeaturedComments(limit = 6) {
+    try {
+        const { data } = await api.get(`/api/comments/featured?limit=${limit}`);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error fetching featured comments:", error);
+        return { success: false, error: "Could not fetch featured comments" };
+    }
+}
+
 export const commentService = {
     getCommentsByLesson,
     getCommentsByCourse,
@@ -199,5 +209,6 @@ export const commentService = {
     rejectComment,
     getAllComments,
     getPendingComments,
+    getFeaturedComments,
 };
 
