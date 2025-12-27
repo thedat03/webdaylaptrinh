@@ -64,5 +64,9 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
     @Modifying(clearAutomatically = true)
     @Query("DELETE FROM Comment c WHERE c.course.course_id = :courseId")
     void deleteByCourseId(@Param("courseId") UUID courseId);
+    
+    // Lấy featured comments (comments có rating từ tất cả courses, đã duyệt, không phải reply)
+    @Query("SELECT c FROM Comment c WHERE c.course IS NOT NULL AND c.rating IS NOT NULL AND c.rating > 0 AND c.isApproved = true AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
+    List<Comment> findFeaturedComments();
 }
 

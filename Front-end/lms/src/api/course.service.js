@@ -12,7 +12,10 @@ function buildQuery(params) {
 
 async function getAllCourses(params) {
     try {
-        const { data } = await api.get(`/api/courses${buildQuery(params)}`);
+        const { data } = await api.get(`/api/courses${buildQuery(params)}`, {
+            skipAuthRedirect: true, // Public endpoint khi xem danh sách khóa học, không redirect khi 401
+            metadata: { skipAuthRedirect: true }
+        });
         return { success: true, data };
     } catch (error) {
         console.error("Error fetching courses:", error);
@@ -22,7 +25,10 @@ async function getAllCourses(params) {
 
 async function getCourseById(courseId) {
     try {
-        const { data } = await api.get(`/api/courses/${courseId}`);
+        const { data } = await api.get(`/api/courses/${courseId}`, {
+            skipAuthRedirect: true, // Public endpoint khi xem chi tiết khóa học, không redirect khi 401
+            metadata: { skipAuthRedirect: true }
+        });
         return { success: true, data };
     } catch (error) {
         console.error("Error fetching course:", error);

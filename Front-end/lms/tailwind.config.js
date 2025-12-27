@@ -29,9 +29,14 @@ export default {
                     '0%': { opacity: 0, transform: 'translateY(20px)' },
                     '100%': { opacity: 1, transform: 'translateY(0)' },
                 },
+                fadeIn: {
+                    '0%': { opacity: '0', transform: 'translateY(10px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                },
             },
             animation: {
                 fadeInUp: 'fadeInUp 0.8s ease-out forwards',
+                fadeIn: 'fadeIn 0.5s ease-in-out',
             },
             backgroundImage: {
                 'gradient-primary': 'linear-gradient(to right, #2563eb, #7c3aed)',

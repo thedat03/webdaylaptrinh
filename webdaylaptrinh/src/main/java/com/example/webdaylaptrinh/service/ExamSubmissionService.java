@@ -9,6 +9,7 @@ import com.example.webdaylaptrinh.repository.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ExamSubmissionService {
 
     private final ExamRepository examRepository;
@@ -29,6 +31,7 @@ public class ExamSubmissionService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final CodeExecutionService codeExecutionService;
+    private final GeminiService geminiService;
 
     @Transactional
     public ExamSubmission submit(UUID examId, UUID userId, ExamSubmitRequest request) {
@@ -76,6 +79,24 @@ public class ExamSubmissionService {
                 } else {
                     answer.setScore(0.0);
                 }
+                // Gọi Gemini để tạo feedback cho câu hỏi trắc nghiệm
+                try {
+                    String feedback = geminiService.gradeAndProvideFeedback(
+                            question.getPrompt() != null ? question.getPrompt() : "",
+                            "MCQ",
+                            question.getAnswer() != null ? question.getAnswer() : "",
+                            selected != null ? selected : "",
+                            correct,
+                            null
+                    );
+                    answer.setFeedback(feedback);
+                    log.info("Generated feedback for MCQ question: {}", question.getId());
+                } catch (Exception e) {
+                    // Nếu Gemini lỗi, không làm crash toàn bộ submission nhưng log chi tiết
+                    log.error("Error generating feedback from Gemini for MCQ question {}: {}", 
+                        question.getId(), e.getMessage(), e);
+                    answer.setFeedback("Không thể tạo feedback từ AI. Lỗi: " + e.getMessage());
+                }
             } else {
                 // CODE question
                 String code = payload != null ? payload.getCodeAnswer() : null;
@@ -108,12 +129,49 @@ public class ExamSubmissionService {
                                 answer.setScore(allPassed ? questionMax : 0.0);
                                 answer.setAutoResult(writeResults(results));
                                 totalScore += answer.getScore();
+                                
+                                // Gọi Gemini để tạo feedback cho câu hỏi code
+                                try {
+                                    String testResultsJson = writeResults(results);
+                                    String feedback = geminiService.gradeAndProvideFeedback(
+                                            question.getPrompt() != null ? question.getPrompt() : "",
+                                            "CODE",
+                                            question.getStarterCode() != null ? question.getStarterCode() : "",
+                                            code,
+                                            allPassed,
+                                            testResultsJson
+                                    );
+                                    answer.setFeedback(feedback);
+                                    log.info("Generated feedback for CODE question: {}", question.getId());
+                                } catch (Exception e) {
+                                    // Nếu Gemini lỗi, không làm crash toàn bộ submission nhưng log chi tiết
+                                    log.error("Error generating feedback from Gemini for CODE question {}: {}", 
+                                        question.getId(), e.getMessage(), e);
+                                    answer.setFeedback("Không thể tạo feedback từ AI. Lỗi: " + e.getMessage());
+                                }
                             }
                         } catch (Exception e) {
                             // Nếu parse hoặc execute lỗi, cho điểm 0
                             answer.setScore(0.0);
                             answer.setPassed(false);
                             answer.setAutoResult("[]");
+                            // Vẫn tạo feedback cho trường hợp lỗi
+                            try {
+                                String feedback = geminiService.gradeAndProvideFeedback(
+                                        question.getPrompt() != null ? question.getPrompt() : "",
+                                        "CODE",
+                                        question.getStarterCode() != null ? question.getStarterCode() : "",
+                                        code,
+                                        false,
+                                        "Lỗi khi chạy code: " + e.getMessage()
+                                );
+                                answer.setFeedback(feedback);
+                                log.info("Generated feedback for CODE question with error: {}", question.getId());
+                            } catch (Exception ex) {
+                                log.error("Error generating feedback from Gemini for CODE question {} with error: {}", 
+                                    question.getId(), ex.getMessage(), ex);
+                                answer.setFeedback("Không thể tạo feedback từ AI. Lỗi: " + ex.getMessage());
+                            }
                         }
                     }
                 }

@@ -6,6 +6,7 @@ import logo from "../../assets/images/logo.jpg";
 import { learningService } from "../../api/learning.service";
 import { codeService } from "../../api/code.service";
 import { JUDGE0_LANGUAGE_MAP } from "../../constants/judge0Languages";
+import { parseMarkdownToHTML } from "../../utils/markdownParser";
 
 // --- Logic Helpers (Giữ nguyên) ---
 function toYouTubeEmbed(url) {
@@ -25,232 +26,7 @@ function toYouTubeEmbed(url) {
     }
 }
 
-function parseMarkdownToHTML(text) {
-    if (!text) return "";
-
-    const lines = text.split(/\r?\n/);
-    let html = "";
-    let inList = false;
-    let listType = null;
-    let inCodeBlock = false;
-    let codeBlockContent = "";
-    let inSpecialBlock = false;
-    let specialBlockType = "";
-    let specialBlockContent = "";
-
-    const closeList = () => {
-        if (inList) {
-            html += listType === "ul" ? "</ul>" : "</ol>";
-            inList = false;
-            listType = null;
-        }
-    };
-
-    const closeCodeBlock = () => {
-        if (inCodeBlock) {
-            html += `<div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded my-6 font-mono text-sm text-gray-900 overflow-x-auto text-left"><pre class="m-0 text-left"><code class="text-left">${escapeHtml(codeBlockContent.trim())}</code></pre></div>`;
-            inCodeBlock = false;
-            codeBlockContent = "";
-        }
-    };
-
-    const closeSpecialBlock = () => {
-        if (inSpecialBlock) {
-            const bgClass = specialBlockType === "INPUT"
-                ? "bg-blue-50 border-l-4 border-blue-400"
-                : specialBlockType === "OUTPUT"
-                    ? "bg-green-50 border-l-4 border-green-400"
-                    : "bg-blue-50 border-l-4 border-blue-400";
-
-            html += `<div class="${bgClass} p-4 rounded my-6 font-mono text-sm text-gray-900 overflow-x-auto whitespace-pre-wrap text-left"><pre class="m-0 text-left">${escapeHtml(specialBlockContent.trim())}</pre></div>`;
-            inSpecialBlock = false;
-            specialBlockType = "";
-            specialBlockContent = "";
-        }
-    };
-
-    lines.forEach((line) => {
-        const trimmed = line.trim();
-
-        // Special blocks: [INPUT], [OUTPUT], [CODE]
-        if (trimmed.match(/^\[(INPUT|OUTPUT|CODE)\]$/i)) {
-            closeList();
-            closeCodeBlock();
-            if (inSpecialBlock) {
-                closeSpecialBlock();
-            } else {
-                specialBlockType = trimmed.slice(1, -1).toUpperCase();
-                inSpecialBlock = true;
-            }
-            return;
-        }
-
-        if (inSpecialBlock) {
-            specialBlockContent += line + "\n";
-            return;
-        }
-
-        closeSpecialBlock();
-
-        // Code blocks
-        if (trimmed.startsWith("```")) {
-            if (inCodeBlock) {
-                closeCodeBlock();
-            } else {
-                closeList();
-                inCodeBlock = true;
-            }
-            return;
-        }
-
-        if (inCodeBlock) {
-            codeBlockContent += line + "\n";
-            return;
-        }
-
-        closeCodeBlock();
-
-        if (!trimmed) {
-            closeList();
-            if (html && !html.endsWith("<br />")) {
-                html += "<br />";
-            }
-            return;
-        }
-
-        // Headings
-        if (trimmed.startsWith("# ")) {
-            closeList();
-            html += `<h1 class="text-3xl font-bold text-gray-900 mt-10 mb-6 leading-tight text-left">${escapeHtml(trimmed.slice(2))}</h1>`;
-            return;
-        }
-        if (trimmed.startsWith("## ")) {
-            closeList();
-            html += `<h2 class="text-2xl font-bold text-gray-900 mt-8 mb-4 leading-tight text-left">${escapeHtml(trimmed.slice(3))}</h2>`;
-            return;
-        }
-        if (trimmed.startsWith("### ")) {
-            closeList();
-            html += `<h3 class="text-xl font-bold text-gray-800 mt-6 mb-3 leading-tight text-left">${escapeHtml(trimmed.slice(4))}</h3>`;
-            return;
-        }
-        if (trimmed.startsWith("#### ")) {
-            closeList();
-            html += `<h4 class="text-lg font-bold text-gray-800 mt-5 mb-2 leading-tight text-left">${escapeHtml(trimmed.slice(5))}</h4>`;
-            return;
-        }
-
-        // Lists
-        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-            if (!inList || listType !== "ul") {
-                closeList();
-                html += '<ul class="list-disc ml-6 mb-5 space-y-1.5 text-left">';
-                inList = true;
-                listType = "ul";
-            }
-            let content = trimmed.slice(2);
-            content = processInlineMarkdown(content);
-            html += `<li class="leading-7 text-left">${content}</li>`;
-            return;
-        }
-
-        if (trimmed.match(/^\d+\.\s/)) {
-            if (!inList || listType !== "ol") {
-                closeList();
-                html += '<ol class="list-decimal ml-6 mb-5 space-y-1.5 text-left">';
-                inList = true;
-                listType = "ol";
-            }
-            let content = trimmed.replace(/^\d+\.\s/, "");
-            content = processInlineMarkdown(content);
-            html += `<li class="leading-7 text-left">${content}</li>`;
-            return;
-        }
-
-        // Regular paragraph
-        closeList();
-        const processed = processInlineMarkdown(trimmed);
-        html += `<p class="mb-6 leading-8 text-gray-800 text-left">${processed}</p>`;
-    });
-
-    closeList();
-    closeCodeBlock();
-    closeSpecialBlock();
-
-    return html;
-}
-
-function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, (m) => map[m]);
-}
-
-function processInlineMarkdown(text) {
-    // Escape HTML first
-    let processed = escapeHtml(text);
-
-    // Split by code blocks first to avoid processing inside them
-    const codeRegex = /`([^`]+)`/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = codeRegex.exec(processed)) !== null) {
-        // Add text before code
-        if (match.index > lastIndex) {
-            parts.push({
-                type: 'text',
-                content: processed.substring(lastIndex, match.index)
-            });
-        }
-        // Add code block
-        parts.push({
-            type: 'code',
-            content: match[1]
-        });
-        lastIndex = match.index + match[0].length;
-    }
-    // Add remaining text
-    if (lastIndex < processed.length) {
-        parts.push({
-            type: 'text',
-            content: processed.substring(lastIndex)
-        });
-    }
-
-    // Process each part
-    processed = parts.map(part => {
-        if (part.type === 'code') {
-            return `<code class="bg-blue-50 text-blue-900 px-2 py-0.5 rounded text-sm font-mono">${part.content}</code>`;
-        }
-
-        let result = part.content;
-
-        // Bold
-        result = result.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900">$1</strong>');
-        result = result.replace(/\b__(.*?)__\b/g, '<strong class="font-bold text-gray-900">$1</strong>');
-
-        // Italic
-        result = result.replace(/\*(.*?)\*/g, '<em class="italic text-gray-600">$1</em>');
-        result = result.replace(/\b_(.*?)_\b/g, '<em class="italic text-gray-600">$1</em>');
-
-        // Links
-        result = result.replace(
-            /\[([^\]]+)\]\(([^)]+)\)/g,
-            '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 underline">$1</a>'
-        );
-
-        return result;
-    }).join('');
-
-    return processed;
-}
+// Markdown parser is now imported from utils/markdownParser.js
 
 function parseCodeTestCases(raw) {
     if (!raw) return [];
@@ -592,6 +368,12 @@ export default function LessonViewer() {
                     <button onClick={handleGuide} className="flex items-center gap-1 px-3 py-1 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
                         <span className="text-lg">❓</span> Hướng dẫn
                     </button>
+                    <button onClick={() => setIsDiscussionOpen(true)} className="flex items-center gap-1 px-3 py-1 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        Hỏi đáp
+                    </button>
                 </div>
             </header>
 
@@ -737,12 +519,6 @@ export default function LessonViewer() {
                                     <div className="max-w-4xl mx-auto p-8">
                                         <div className="mb-6">
                                             <h1 className="text-2xl font-bold text-gray-900 mb-2">{lesson.title}</h1>
-
-                                        </div>
-                                        <div className="mb-6">
-                                            <p className="text-base text-gray-700 leading-relaxed whitespace-pre-line">
-                                                {lesson.description || "Chưa có hướng dẫn cho câu hỏi này."}
-                                            </p>
                                         </div>
                                         {quizData && (
                                             <div className="space-y-4 mb-6">
@@ -798,19 +574,10 @@ export default function LessonViewer() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="flex items-center justify-between mb-4">
+                                            <div className="mb-4">
                                                 <h1 className="text-4xl font-bold text-gray-900 leading-tight tracking-tight">
                                                     {lesson.title}
                                                 </h1>
-                                                <button
-                                                    onClick={() => setIsDiscussionOpen(true)}
-                                                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition shadow-sm hover:shadow-md"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                                    </svg>
-                                                    Hỏi đáp
-                                                </button>
                                             </div>
                                             <div className="flex items-center gap-4 text-sm text-gray-500">
                                                 <span className="flex items-center gap-1">
@@ -861,60 +628,6 @@ export default function LessonViewer() {
                         </div>
                     </div>
 
-                    {/* Lesson Info & Description (Below Video) */}
-                    {lesson.type !== "QUIZ" && lesson.type !== "MATERIAL" && (
-                        <div className="max-w-5xl mx-auto w-full p-8 pb-24">
-                            <div className="flex items-center justify-between mb-6">
-                                <h1 className="text-3xl font-bold text-[#292929]">{lesson.title}</h1>
-                                <button
-                                    onClick={() => setIsDiscussionOpen(true)}
-                                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition shadow-sm hover:shadow-md"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                    </svg>
-                                    Hỏi đáp
-                                </button>
-                            </div>
-
-                            <div className="text-[#292929] text-base leading-7 whitespace-pre-line">
-                                {lesson.description || "Chưa có mô tả cho bài học này."}
-
-                                {lesson.type === "HOMEWORK" && lesson.contentUrl && (
-                                    <div className="mt-6">
-                                        <a
-                                            href={lesson.contentUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="inline-flex items-center gap-2 text-[#f05123] font-semibold hover:underline"
-                                        >
-                                            📥 Tải xuống tài liệu đính kèm
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="mt-10 text-sm text-gray-500">
-                                Cập nhật tháng 11 năm 2025
-                            </div>
-                        </div>
-                    )}
-
-                    {(lesson.type === "QUIZ" || lesson.type === "MATERIAL") && (
-                        <div className="max-w-5xl mx-auto w-full p-8 pb-24">
-                            <div className="flex items-center justify-end mb-6">
-                                <button
-                                    onClick={() => setIsDiscussionOpen(true)}
-                                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition shadow-sm hover:shadow-md"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                    </svg>
-                                    Hỏi đáp
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </main>
 
                 {/* SIDEBAR (Right - Tracklist) */}

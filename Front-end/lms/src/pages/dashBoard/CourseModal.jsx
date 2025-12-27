@@ -1,5 +1,5 @@
-import { Modal, Form, Input, InputNumber, message, Select, Upload } from "antd";
-import { UploadOutlined } from "@ant-design/icons";
+import { Modal, Form, Input, InputNumber, message, Select, Upload, Button } from "antd";
+import { UploadOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { adminService } from "../../api/admin.service";
 import { categoryService } from "../../api/category.service";
@@ -14,6 +14,7 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
     const [imageUrl, setImageUrl] = useState("");
     const [fetchingData, setFetchingData] = useState(false);
     const [categories, setCategories] = useState([]);
+    const [learningOutcomes, setLearningOutcomes] = useState([""]);
 
     const isEditMode = mode === "edit" || courseId !== null;
     const modalTitle = isEditMode ? "Edit Course" : "Add New Course";
@@ -28,6 +29,7 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
             fetchCourseData();
         } else if (isOpen && !isEditMode) {
             form.resetFields();
+            setLearningOutcomes([""]);
             // Auto-fill instructor if user is INSTRUCTOR
             const currentUser = authService.getCurrentUser();
             if (currentUser && currentUser.role === "ROLE_INSTRUCTOR" && currentUser.name) {
@@ -64,6 +66,23 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
                 };
                 form.setFieldsValue(formData);
                 setImageUrl(result.data.p_link || "");
+
+                // Parse learning outcomes from JSON string
+                if (result.data.learningOutcomes) {
+                    try {
+                        const parsed = JSON.parse(result.data.learningOutcomes);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setLearningOutcomes(parsed);
+                        } else {
+                            setLearningOutcomes([""]);
+                        }
+                    } catch (e) {
+                        console.error("Error parsing learningOutcomes:", e);
+                        setLearningOutcomes([""]);
+                    }
+                } else {
+                    setLearningOutcomes([""]);
+                }
             } else {
                 message.error(result.error);
                 onClose();
@@ -79,6 +98,10 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
     const handleSubmit = async (values) => {
         setLoading(true);
         try {
+            // Filter out empty learning outcomes and convert to JSON
+            const filteredOutcomes = learningOutcomes.filter(outcome => outcome && outcome.trim().length > 0);
+            const learningOutcomesJson = filteredOutcomes.length > 0 ? JSON.stringify(filteredOutcomes) : null;
+
             let result;
             if (isEditMode) {
                 const editData = {
@@ -86,6 +109,7 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
                     instructor: values.instructor,
                     price: values.price,
                     description: values.description,
+                    learningOutcomes: learningOutcomesJson,
                     y_link: values.y_link,
                     p_link: imageUrl,
                     category: values.category ? { category_id: values.category } : null,
@@ -103,6 +127,7 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
                     instructor: values.instructor,
                     price: values.price,
                     description: values.description,
+                    learningOutcomes: learningOutcomesJson,
                     y_link: values.y_link,
                     p_link: imageUrl,
                     category: values.category ? { category_id: values.category } : null,
@@ -114,6 +139,7 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
             if (result.success) {
                 message.success(isEditMode ? "Course updated successfully!" : "Course added successfully!");
                 form.resetFields();
+                setLearningOutcomes([""]);
                 onClose();
                 onSuccess?.();
             } else {
@@ -128,7 +154,24 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
 
     const handleCancel = () => {
         form.resetFields();
+        setLearningOutcomes([""]);
         onClose();
+    };
+
+    const addLearningOutcome = () => {
+        setLearningOutcomes([...learningOutcomes, ""]);
+    };
+
+    const removeLearningOutcome = (index) => {
+        if (learningOutcomes.length > 1) {
+            setLearningOutcomes(learningOutcomes.filter((_, i) => i !== index));
+        }
+    };
+
+    const updateLearningOutcome = (index, value) => {
+        const updated = [...learningOutcomes];
+        updated[index] = value;
+        setLearningOutcomes(updated);
     };
 
     return (
@@ -219,6 +262,41 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
                             ]}
                         >
                             <TextArea rows={4} placeholder="Enter course description" showCount maxLength={500} />
+                        </Form.Item>
+
+                        <Form.Item
+                            label="Bạn sẽ học được gì? (Kết quả đạt được sau khóa học)"
+                            help="Nhập các kết quả học viên sẽ đạt được sau khi hoàn thành khóa học"
+                        >
+                            <div className="space-y-2">
+                                {learningOutcomes.map((outcome, index) => (
+                                    <div key={index} className="flex gap-2 items-start">
+                                        <Input
+                                            value={outcome}
+                                            onChange={(e) => updateLearningOutcome(index, e.target.value)}
+                                            placeholder={`Kết quả ${index + 1} (ví dụ: Các kiến thức cơ bản, nền móng của ngành IT)`}
+                                            className="flex-1"
+                                        />
+                                        {learningOutcomes.length > 1 && (
+                                            <Button
+                                                type="text"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={() => removeLearningOutcome(index)}
+                                                className="flex-shrink-0"
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                                <Button
+                                    type="dashed"
+                                    onClick={addLearningOutcome}
+                                    icon={<PlusOutlined />}
+                                    className="w-full"
+                                >
+                                    Thêm kết quả học tập
+                                </Button>
+                            </div>
                         </Form.Item>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

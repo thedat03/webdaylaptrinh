@@ -2,7 +2,10 @@ import api from "./api";
 
 async function getAllBanners() {
     try {
-        const { data } = await api.get("/api/banners");
+        const { data } = await api.get("/api/banners", {
+            skipAuthRedirect: true, // Public endpoint, không redirect khi 401
+            metadata: { skipAuthRedirect: true }
+        });
         return { success: true, data };
     } catch (error) {
         console.error("Error fetching banners:", error);

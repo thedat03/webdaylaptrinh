@@ -1,6 +1,9 @@
-import { Modal, message } from "antd";
+import { Modal, message, Upload, Tabs } from "antd";
+import { UploadOutlined, QuestionCircleOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
 import { JUDGE0_LANGUAGES } from "../../constants/judge0Languages";
+import { adminService } from "../../api/admin.service";
+import { parseMarkdownToHTML } from "../../utils/markdownParser";
 
 const TYPES = ["VIDEO", "CODE", "HOMEWORK", "MATERIAL", "QUIZ"];
 
@@ -29,6 +32,8 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
     });
     const [codeLanguageId, setCodeLanguageId] = useState(JUDGE0_LANGUAGES[0].id);
     const [codeTestCases, setCodeTestCases] = useState([buildTestCase(1)]);
+    const [imageUploading, setImageUploading] = useState(false);
+    const [showMarkdownHelp, setShowMarkdownHelp] = useState(false);
 
     useEffect(() => {
         setTitle(initialData?.title || "");
@@ -288,17 +293,159 @@ function LessonModal({ isOpen, mode = "add", initialData = null, modules = [], d
                 )}
 
                 {type === "MATERIAL" && (
-                    <div className="md:col-span-2 space-y-3">
+                    <div className="md:col-span-2 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <label className="block text-sm font-medium">Nội dung tài liệu (Markdown)</label>
+                            <button
+                                type="button"
+                                onClick={() => setShowMarkdownHelp(!showMarkdownHelp)}
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                            >
+                                <QuestionCircleOutlined /> {showMarkdownHelp ? "Ẩn" : "Hiện"} hướng dẫn
+                            </button>
+                        </div>
+
+                        {showMarkdownHelp && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs space-y-3">
+                                <div>
+                                    <strong className="text-blue-900">Định dạng văn bản:</strong>
+                                    <ul className="list-disc ml-5 mt-1 space-y-1 text-blue-800">
+                                        <li><code>**text**</code> hoặc <code>__text__</code> = <strong>in đậm</strong></li>
+                                        <li><code>*text*</code> hoặc <code>_text_</code> = <em>in nghiêng</em></li>
+                                        <li><code>{`{red:text}`}</code> = <span className="text-red-600 font-semibold">màu đỏ</span></li>
+                                        <li><code>{`{blue:text}`}</code> = <span className="text-blue-600 font-semibold">màu xanh</span></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <strong className="text-blue-900">Tiêu đề:</strong>
+                                    <ul className="list-disc ml-5 mt-1 space-y-1 text-blue-800">
+                                        <li><code># Tiêu đề lớn</code></li>
+                                        <li><code>## Tiêu đề vừa</code></li>
+                                        <li><code>### Tiêu đề nhỏ</code></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <strong className="text-blue-900">Code:</strong>
+                                    <ul className="list-disc ml-5 mt-1 space-y-1 text-blue-800">
+                                        <li><code>`code inline`</code> = code trong dòng</li>
+                                        <li><code>```c</code> ... <code>```</code> = code block với syntax highlighting</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <strong className="text-blue-900">Ảnh:</strong>
+                                    <ul className="list-disc ml-5 mt-1 space-y-1 text-blue-800">
+                                        <li><code>![Mô tả](url)</code> = chèn ảnh (upload ảnh bên dưới để lấy URL)</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <strong className="text-blue-900">Các section đặc biệt:</strong>
+                                    <ul className="list-disc ml-5 mt-1 space-y-1 text-blue-800">
+                                        <li><code>[VÍ DỤ]</code> = khung ví dụ màu tím</li>
+                                        <li><code>[ĐẦU VÀO/ĐẦU RA]</code> = khung đầu vào/đầu ra màu indigo</li>
+                                        <li><code>[GỢI Ý]</code> = khung gợi ý màu vàng</li>
+                                        <li><code>[ĐIỀU KIỆN TIỀN ĐỀ]</code> = khung điều kiện màu cam</li>
+                                        <li>Viết nội dung bên dưới, kết thúc bằng <code>[VÍ DỤ]</code> lại để đóng</li>
+                                    </ul>
+                                </div>
+                                <div className="bg-white p-3 rounded border border-blue-200">
+                                    <strong className="text-blue-900 block mb-2">Ví dụ mẫu:</strong>
+                                    <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">{`## Đề bài
+
+Xác định xem số nguyên n có phải là số nguyên tố hay không.
+
+[VÍ DỤ]
+Với n = 47, đầu ra là isPrime(n) = true
+Với n = 4, đầu ra là isPrime(n) = false
+[VÍ DỤ]
+
+[ĐẦU VÀO/ĐẦU RA]
+**Giới hạn thời gian chạy:** 0.5 seconds
+**Đầu vào:** integer n
+**Điều kiện tiền đề:** 0 ≤ n ≤ 1000
+**Đầu ra:** boolean
+[ĐẦU VÀO/ĐẦU RA]
+
+[GỢI Ý]
+Kiểm tra xem n có chia hết cho số nào trong khoảng từ 2 tới căn bậc 2 của n hay không?
+[GỢI Ý]
+
+\`\`\`c
+int isPrime(int n) {
+    // Code here
+}
+\`\`\``}</pre>
+                                </div>
+                            </div>
+                        )}
+
                         <div>
-                            <label className="block text-sm font-medium mb-1">Nội dung tài liệu</label>
-                            <textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                className="w-full border rounded-lg px-3 py-2 h-64 resize-y"
-                                placeholder="Nhập nội dung tài liệu (không giới hạn độ dài)..."
+                            <label className="block text-sm font-medium mb-2">Upload ảnh minh họa (tùy chọn)</label>
+                            <Upload
+                                accept="image/*"
+                                showUploadList={true}
+                                maxCount={5}
+                                customRequest={async ({ file, onSuccess, onError }) => {
+                                    setImageUploading(true);
+                                    try {
+                                        const res = await adminService.uploadImage(file);
+                                        if (res.success) {
+                                            const imageUrl = res.data.url;
+                                            // Insert image markdown at cursor position or append
+                                            const imageMarkdown = `![Mô tả ảnh](${imageUrl})\n\n`;
+                                            setDescription(prev => prev + imageMarkdown);
+                                            message.success("Upload ảnh thành công! Đã chèn vào nội dung.");
+                                            onSuccess?.(res.data, file);
+                                        } else {
+                                            message.error(res.error || "Upload ảnh thất bại");
+                                            onError?.(res.error);
+                                        }
+                                    } catch (error) {
+                                        message.error("Lỗi upload ảnh");
+                                        onError?.(error);
+                                    } finally {
+                                        setImageUploading(false);
+                                    }
+                                }}
+                            >
+                                <button type="button" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm" disabled={imageUploading}>
+                                    <UploadOutlined /> {imageUploading ? "Đang tải..." : "Upload ảnh"}
+                                </button>
+                            </Upload>
+                            <p className="text-xs text-gray-500 mt-1">Có thể upload nhiều ảnh. URL sẽ tự động chèn vào nội dung.</p>
+                        </div>
+
+                        <div>
+                            <Tabs
+                                items={[
+                                    {
+                                        key: 'edit',
+                                        label: 'Soạn thảo',
+                                        children: (
+                                            <textarea
+                                                value={description}
+                                                onChange={(e) => setDescription(e.target.value)}
+                                                className="w-full border rounded-lg px-3 py-2 h-96 resize-y font-mono text-sm"
+                                                placeholder="Nhập nội dung tài liệu bằng Markdown..."
+                                            />
+                                        )
+                                    },
+                                    {
+                                        key: 'preview',
+                                        label: 'Xem trước',
+                                        children: (
+                                            <div className="border rounded-lg p-6 bg-white h-96 overflow-y-auto">
+                                                <div
+                                                    className="prose prose-sm max-w-none"
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: parseMarkdownToHTML(description)
+                                                    }}
+                                                />
+                                            </div>
+                                        )
+                                    }
+                                ]}
                             />
                         </div>
-                        <p className="text-xs text-gray-500">Nội dung sẽ được hiển thị trực tiếp trên trang học.</p>
                     </div>
                 )}
 

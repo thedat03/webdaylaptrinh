@@ -44,6 +44,9 @@ public class Lesson {
     @Column(name = "position_index")
     private int position;
 
+    // Duration in minutes
+    private Integer durationMinutes;
+
     // Judge0 integration fields
     private Integer codeLanguageId; // Judge0 language ID
 

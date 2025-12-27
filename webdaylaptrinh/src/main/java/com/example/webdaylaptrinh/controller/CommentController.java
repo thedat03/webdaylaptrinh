@@ -273,6 +273,17 @@ public class CommentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+    
+    // Lấy featured comments (comments có rating từ tất cả courses) - Public endpoint
+    @GetMapping("/featured")
+    public ResponseEntity<List<Comment>> getFeaturedComments(@RequestParam(value = "limit", defaultValue = "6") int limit) {
+        try {
+            List<Comment> comments = commentService.getFeaturedComments(limit);
+            return ResponseEntity.ok(comments);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
     private UUID getUserIdFromEmail(String email) {
         com.example.webdaylaptrinh.entity.User user = userRepository.findByEmail(email);

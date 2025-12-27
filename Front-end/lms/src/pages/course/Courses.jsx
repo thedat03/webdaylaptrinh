@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { message } from "antd";
 import { courseService } from "../../api/course.service";
 import { learningService } from "../../api/learning.service";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faClock, faPlayCircle, faQuestionCircle, faStar } from "@fortawesome/free-solid-svg-icons";
 
 function Courses() {
     const [courses, setCourses] = useState([]);
@@ -87,6 +89,30 @@ function Courses() {
 
     const loadMore = () => {
         setDisplayCount(prev => prev + 6);
+    };
+
+    const formatMinutes = (minutes) => {
+        const total = Number(minutes) || 0;
+        if (total <= 0) return "—";
+        const hours = Math.floor(total / 60);
+        const mins = total % 60;
+        if (hours && mins) return `${hours}h ${mins}m`;
+        if (hours) return `${hours}h`;
+        return `${mins} phút`;
+    };
+
+    const getCourseDurationText = (course) => {
+        if (!course) return "—";
+        if (typeof course.totalDurationMinutes === "number") {
+            return formatMinutes(course.totalDurationMinutes);
+        }
+        if (typeof course.duration === "number") {
+            return formatMinutes(course.duration);
+        }
+        if (typeof course.duration === "string" && course.duration.trim().length) {
+            return course.duration;
+        }
+        return "—";
     };
 
     return (
@@ -183,10 +209,72 @@ function Courses() {
                                             {course.course_name}
                                         </h3>
 
-                                        <p className="text-gray-500 text-sm mb-6 flex items-center">
+                                        <p className="text-gray-500 text-sm mb-3 flex items-center">
                                             <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
                                             bởi {course.instructor}
                                         </p>
+
+                                        {/* Learning Outcomes Preview */}
+                                        {(() => {
+                                            let parsedOutcomes = [];
+                                            if (course.learningOutcomes) {
+                                                try {
+                                                    parsedOutcomes = typeof course.learningOutcomes === 'string'
+                                                        ? JSON.parse(course.learningOutcomes)
+                                                        : course.learningOutcomes;
+                                                    if (!Array.isArray(parsedOutcomes)) parsedOutcomes = [];
+                                                } catch (e) {
+                                                    parsedOutcomes = [];
+                                                }
+                                            }
+
+                                            if (parsedOutcomes.length > 0) {
+                                                return (
+                                                    <div className="mb-4 pb-4 border-b border-gray-100">
+                                                        <h4 className="text-sm font-semibold text-gray-900 mb-2">Bạn sẽ học được:</h4>
+                                                        <ul className="space-y-1.5">
+                                                            {parsedOutcomes.slice(0, 3).map((outcome, idx) => (
+                                                                <li key={idx} className="flex gap-2 items-start text-xs text-gray-600">
+                                                                    <span className="text-red-600 font-bold flex-shrink-0 mt-0.5">✓</span>
+                                                                    <span className="line-clamp-1">{outcome}</span>
+                                                                </li>
+                                                            ))}
+                                                            {parsedOutcomes.length > 3 && (
+                                                                <li className="text-xs text-blue-600 font-medium">+{parsedOutcomes.length - 3} kết quả khác...</li>
+                                                            )}
+                                                        </ul>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+
+                                        {/* Course Stats */}
+                                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-4">
+                                            <div className="flex items-center gap-1.5">
+                                                <FontAwesomeIcon icon={faClock} className="text-blue-500 text-[11px]" />
+                                                <span>{getCourseDurationText(course)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <FontAwesomeIcon icon={faPlayCircle} className="text-blue-500 text-[11px]" />
+                                                <span>{course.lessonsCount ?? course.numLessons ?? 0} bài giảng</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <FontAwesomeIcon icon={faQuestionCircle} className="text-blue-500 text-[11px]" />
+                                                <span>{course.commentsCount ?? course.questionsCount ?? course.numQuestions ?? 0} bình luận</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <FontAwesomeIcon icon={faStar} className="text-yellow-500 text-[11px]" />
+                                                <span>{((course.rating || course.stars || 0).toFixed ? (course.rating || course.stars || 0).toFixed(1) : (course.rating || course.stars || 0))}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Rating stars */}
+                                        <div className="flex items-center gap-1 text-amber-500 text-xs mb-4">
+                                            {Array.from({ length: 5 }).map((_, i) => (
+                                                <span key={i}>{(course.rating || course.stars || 0) > i ? '★' : '☆'}</span>
+                                            ))}
+                                        </div>
 
                                         {enrolled.includes(course.course_id) ? (
                                             <button

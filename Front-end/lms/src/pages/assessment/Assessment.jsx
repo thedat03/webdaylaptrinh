@@ -44,6 +44,7 @@ function Assessment() {
     const [mySubmission, setMySubmission] = useState(null);
     const [mySubmissions, setMySubmissions] = useState([]);
     const [loadingMySubmission, setLoadingMySubmission] = useState(false);
+    const [loadingFeedback, setLoadingFeedback] = useState(false);
     const [showMySubmission, setShowMySubmission] = useState(false);
     const [showMySubmissionsList, setShowMySubmissionsList] = useState(false);
 
@@ -94,6 +95,43 @@ function Assessment() {
             setMySubmission(null);
         }
         setLoadingMySubmission(false);
+    };
+
+    // Kiểm tra và polling để lấy feedback từ Gemini
+    const checkFeedbackReady = async (examId, retryCount = 0) => {
+        if (retryCount >= 5) {
+            // Sau 5 lần thử (tổng ~15 giây), dừng lại
+            setLoadingFeedback(false);
+            return;
+        }
+
+        try {
+            const result = await examService.getMySubmissions(examId);
+            if (result.success && result.data && result.data.length > 0) {
+                const latestSubmission = result.data[0];
+                // Kiểm tra xem tất cả answers đã có feedback chưa
+                const allHaveFeedback = latestSubmission.answers?.every(
+                    answer => answer.feedback && answer.feedback.trim().length > 0
+                );
+
+                if (allHaveFeedback) {
+                    // Đã có feedback, cập nhật state
+                    setMySubmissions(result.data);
+                    setMySubmission(latestSubmission);
+                    setLoadingFeedback(false);
+                } else {
+                    // Chưa có feedback, thử lại sau 3 giây
+                    setTimeout(() => {
+                        checkFeedbackReady(examId, retryCount + 1);
+                    }, 3000);
+                }
+            } else {
+                setLoadingFeedback(false);
+            }
+        } catch (error) {
+            console.error("Error checking feedback:", error);
+            setLoadingFeedback(false);
+        }
     };
 
     const selectExam = (exam) => {
@@ -162,8 +200,17 @@ function Assessment() {
         if (result.success) {
             setSubmissionResult(result.data);
             setOpenModal(true);
-            // Tự động load lại bài làm sau khi submit
-            await fetchMySubmission(selectedExam.id);
+            // Bắt đầu loading feedback
+            setLoadingFeedback(true);
+            // Tự động load lại bài làm sau khi submit để có feedback từ Gemini
+            // Đợi một chút để Gemini API có thời gian tạo feedback
+            setTimeout(async () => {
+                await fetchMySubmission(selectedExam.id);
+                // Kiểm tra xem feedback đã có chưa, nếu chưa thì polling
+                if (selectedExam?.id) {
+                    checkFeedbackReady(selectedExam.id);
+                }
+            }, 2000); // Đợi 2 giây để Gemini API xử lý
         } else {
             message.error(result.error || 'Nộp bài thất bại');
         }
@@ -507,6 +554,28 @@ function Assessment() {
                 onCancel={() => setOpenModal(false)}
                 footer={[
                     <button
+                        key="view"
+                        onClick={() => {
+                            setOpenModal(false);
+                            setShowMySubmission(true);
+                            // Bắt đầu check feedback nếu chưa có
+                            if (!mySubmission?.answers?.every(a => a.feedback)) {
+                                setLoadingFeedback(true);
+                                checkFeedbackReady(selectedExam.id);
+                            }
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors mr-2 flex items-center gap-2"
+                    >
+                        {loadingFeedback ? (
+                            <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                Đang tải feedback...
+                            </>
+                        ) : (
+                            'Xem chi tiết & Feedback AI'
+                        )}
+                    </button>,
+                    <button
                         key="ok"
                         onClick={() => navigate(`/course/${courseId}`)}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
@@ -715,6 +784,44 @@ function Assessment() {
                                                             </pre>
                                                         </div>
                                                     )}
+                                                </div>
+                                            )}
+                                            {/* Feedback từ Gemini AI */}
+                                            {answer.feedback ? (
+                                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="text-lg">🤖</span>
+                                                        <Text strong className="text-indigo-600">Nhận xét và lời khuyên từ AI:</Text>
+                                                    </div>
+                                                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border-l-4 border-indigo-500">
+                                                        <Text className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                                            {answer.feedback}
+                                                        </Text>
+                                                    </div>
+                                                </div>
+                                            ) : loadingFeedback ? (
+                                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        <span className="text-lg">🤖</span>
+                                                        <Text strong className="text-indigo-600">AI đang phân tích và tạo feedback...</Text>
+                                                    </div>
+                                                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border-l-4 border-indigo-500">
+                                                        <div className="flex items-center justify-center gap-3 py-4">
+                                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                                                            <Text className="text-gray-600 italic">
+                                                                Đang xử lý, vui lòng đợi...
+                                                            </Text>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="text-lg">🤖</span>
+                                                        <Text className="text-gray-500 text-sm italic">
+                                                            Chưa có feedback từ AI (Có thể API key chưa được cấu hình hoặc đã hết thời gian chờ)
+                                                        </Text>
+                                                    </div>
                                                 </div>
                                             )}
                                         </Card>

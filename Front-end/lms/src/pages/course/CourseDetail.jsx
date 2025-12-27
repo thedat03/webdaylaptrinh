@@ -297,23 +297,54 @@ function CourseDetail() {
                 <div className="lg:col-span-2 space-y-10">
                     {/* Title */}
                     <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">{course.course_name}</h1>
-                    <p className="text-gray-600 mb-6">Học {course.course_name} cơ bản phù hợp cho người chưa từng học lập trình.</p>
+                    <p className="text-gray-600 mb-6">{course.description || `Học ${course.course_name} cơ bản phù hợp cho người chưa từng học lập trình.`}</p>
 
-                    {/* Benefits two columns */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 rounded-2xl p-6 mb-8">
-                        <ul className="space-y-3 text-gray-700">
-                            <li className="flex gap-3"><span className="text-green-600">✓</span> Hiểu chi tiết các khái niệm cơ bản</li>
-                            <li className="flex gap-3"><span className="text-green-600">✓</span> Tự tin phỏng vấn với kiến thức vững chắc</li>
-                            <li className="flex gap-3"><span className="text-green-600">✓</span> Nắm vững tính năng hiện đại</li>
-                            <li className="flex gap-3"><span className="text-green-600">✓</span> Ghi nhớ qua bài tập trắc nghiệm</li>
-                        </ul>
-                        <ul className="space-y-3 text-gray-700">
-                            <li className="flex gap-3"><span className="text-green-600">✓</span> Xây dựng website đầu tiên</li>
-                            <li className="flex gap-3"><span className="text-green-600">✓</span> Thành thạo DOM APIs tương tác web</li>
-                            <li className="flex gap-3"><span className="text-green-600">✓</span> Nâng cao tư duy qua kiểm tra</li>
-                            <li className="flex gap-3"><span className="text-green-600">✓</span> Nhận chứng chỉ hoàn thành</li>
-                        </ul>
-                    </div>
+                    {/* Learning Outcomes */}
+                    {(() => {
+                        let parsedOutcomes = [];
+                        if (course.learningOutcomes) {
+                            try {
+                                parsedOutcomes = typeof course.learningOutcomes === 'string'
+                                    ? JSON.parse(course.learningOutcomes)
+                                    : course.learningOutcomes;
+                                if (!Array.isArray(parsedOutcomes)) parsedOutcomes = [];
+                            } catch (e) {
+                                console.error("Error parsing learningOutcomes:", e);
+                                parsedOutcomes = [];
+                            }
+                        }
+
+                        if (parsedOutcomes.length > 0) {
+                            const midPoint = Math.ceil(parsedOutcomes.length / 2);
+                            const leftColumn = parsedOutcomes.slice(0, midPoint);
+                            const rightColumn = parsedOutcomes.slice(midPoint);
+
+                            return (
+                                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Bạn sẽ học được gì?</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <ul className="space-y-3 text-gray-700">
+                                            {leftColumn.map((outcome, idx) => (
+                                                <li key={idx} className="flex gap-3 items-start">
+                                                    <span className="text-red-600 font-bold text-lg flex-shrink-0 mt-0.5">✓</span>
+                                                    <span className="flex-1">{outcome}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <ul className="space-y-3 text-gray-700">
+                                            {rightColumn.map((outcome, idx) => (
+                                                <li key={idx + midPoint} className="flex gap-3 items-start">
+                                                    <span className="text-red-600 font-bold text-lg flex-shrink-0 mt-0.5">✓</span>
+                                                    <span className="flex-1">{outcome}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
 
                     {/* Curriculum header */}
                     <div className="flex items-center justify-between flex-wrap gap-3 mb-4">

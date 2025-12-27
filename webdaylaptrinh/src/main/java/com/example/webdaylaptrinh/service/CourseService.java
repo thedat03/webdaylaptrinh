@@ -4,6 +4,10 @@ package com.example.webdaylaptrinh.service;
 import com.example.webdaylaptrinh.entity.Course;
 import com.example.webdaylaptrinh.entity.Category;
 import com.example.webdaylaptrinh.entity.User;
+import com.example.webdaylaptrinh.entity.CourseModule;
+import com.example.webdaylaptrinh.entity.Lesson;
+import com.example.webdaylaptrinh.entity.Questions;
+import com.example.webdaylaptrinh.entity.Comment;
 import com.example.webdaylaptrinh.enums.CourseStatus;
 import com.example.webdaylaptrinh.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -32,29 +36,23 @@ public class CourseService {
     private final DiscussionRepository discussionRepository;
     private final FeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
+    private final CourseModuleRepository moduleRepository;
+    private final LessonRepository lessonRepository;
     private final JdbcTemplate jdbcTemplate;
     private final NotificationService notificationService;
 
     public List<Course> getAllCourses() {
         List<Course> courses = courseRepository.findAll();
-        // Đảm bảo modules không được load để tránh circular reference
-        courses.forEach(course -> {
-            if (course.getModules() != null) {
-                course.setModules(null);
-            }
-        });
+        // Load modules và lessons để tính toán statistics
+        courses.forEach(this::loadCourseStatistics);
         return courses;
     }
 
     public List<Course> getAllCoursesFiltered(String categoryId, Boolean free) {
         // Chỉ trả về các khóa học đã được duyệt cho public
         List<Course> courses = courseRepository.findByStatus(CourseStatus.APPROVED);
-        // Đảm bảo modules không được load để tránh circular reference
-        courses.forEach(course -> {
-            if (course.getModules() != null) {
-                course.setModules(null);
-            }
-        });
+        // Load modules và lessons để tính toán statistics
+        courses.forEach(this::loadCourseStatistics);
         if (categoryId != null && !categoryId.isBlank()) {
             try {
                 UUID catId = UUID.fromString(categoryId);
@@ -73,12 +71,34 @@ public class CourseService {
     // Admin/Instructor có thể xem tất cả khóa học (bao gồm PENDING)
     public List<Course> getAllCoursesForAdmin() {
         List<Course> courses = courseRepository.findAll();
-        courses.forEach(course -> {
-            if (course.getModules() != null) {
-                course.setModules(null);
-            }
-        });
+        courses.forEach(this::loadCourseStatistics);
         return courses;
+    }
+
+    /**
+     * Load modules, lessons và comments cho course để tính toán statistics
+     * Sau khi tính toán xong, modules sẽ được set null để tránh circular reference trong JSON
+     */
+    private void loadCourseStatistics(Course course) {
+        // Load modules và lessons
+        List<CourseModule> modules = moduleRepository.findByCourseOrderByPositionAsc(course);
+        if (modules != null) {
+            course.setModules(modules);
+            // Load lessons cho mỗi module
+            modules.forEach(module -> {
+                List<Lesson> lessons = lessonRepository.findByModuleOrderByPositionAsc(module);
+                module.setLessons(lessons);
+            });
+        }
+        
+        // Load comments for course (all comments, not just approved, for statistics calculation)
+        List<Comment> comments = commentRepository.findByCourse_CourseIdAndParentCommentIsNullOrderByCreatedAtDesc(course.getCourse_id());
+        
+        // Compute and set statistics
+        course.computeStatistics(comments);
+        
+        // Set null sau khi tính toán để tránh circular reference trong JSON
+        course.setModules(null);
     }
 
     public Course getCourseById(UUID id) {
@@ -144,6 +164,7 @@ public class CourseService {
             
             existingCourse.setCourse_name(updatedCourse.getCourse_name());
             existingCourse.setDescription(updatedCourse.getDescription());
+            existingCourse.setLearningOutcomes(updatedCourse.getLearningOutcomes());
             existingCourse.setP_link(updatedCourse.getP_link());
             existingCourse.setPrice(updatedCourse.getPrice());
             existingCourse.setInstructor(updatedCourse.getInstructor());

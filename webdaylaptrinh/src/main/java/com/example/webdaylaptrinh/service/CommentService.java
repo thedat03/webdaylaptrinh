@@ -184,5 +184,14 @@ public class CommentService {
     public long countApprovedCommentsByLesson(UUID lessonId) {
         return commentRepository.countByLesson_LessonIdAndIsApprovedTrue(lessonId);
     }
+    
+    // Lấy featured comments (comments có rating từ tất cả courses)
+    public List<Comment> getFeaturedComments(int limit) {
+        List<Comment> allFeatured = commentRepository.findFeaturedComments();
+        if (limit > 0 && allFeatured.size() > limit) {
+            return allFeatured.subList(0, limit);
+        }
+        return allFeatured;
+    }
 }
 

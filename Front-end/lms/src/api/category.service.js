@@ -2,7 +2,10 @@ import api from "./api";
 
 async function getAllCategories() {
     try {
-        const { data } = await api.get("/api/categories");
+        const { data } = await api.get("/api/categories", {
+            skipAuthRedirect: true, // Public endpoint, không redirect khi 401
+            metadata: { skipAuthRedirect: true }
+        });
         return { success: true, data };
     } catch (error) {
         console.error("Error fetching categories:", error);

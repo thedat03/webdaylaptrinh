@@ -2,7 +2,10 @@ import api from "./api";
 
 async function getFeaturedNews() {
     try {
-        const { data } = await api.get("/api/news");
+        const { data } = await api.get("/api/news", {
+            skipAuthRedirect: true, // Public endpoint, không redirect khi 401
+            metadata: { skipAuthRedirect: true }
+        });
         return { success: true, data };
     } catch (e) {
         return { success: false, error: "Failed to fetch featured news" };

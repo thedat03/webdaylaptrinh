@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../Components/common/Navbar";
 import Footer from "../../Components/common/Footer";
-import { faBookOpen, faUsers, faClock } from "@fortawesome/free-solid-svg-icons";
+import { faBookOpen, faClock } from "@fortawesome/free-solid-svg-icons";
 import { faChalkboardTeacher, faStar, faQuestionCircle, faPlayCircle } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import c2 from "../../assets/images/html.png";
@@ -186,17 +186,16 @@ function Home() {
     useEffect(() => {
         const loadTestimonials = async () => {
             try {
-                const res = await commentService.getFeaturedComments(6);
+                const res = await commentService.getFeaturedComments(10);
                 if (res.success && Array.isArray(res.data) && res.data.length) {
                     const mapped = res.data.map((c, idx) => ({
                         id: c.commentId || c.id || idx,
-                        name: c.userName || c.user?.username || c.user?.fullName || "Học viên",
-                        avatar: getAvatarUrl(c.avatarUrl || c.user?.avatar),
-                        info: c.courseName
-                            ? `Khóa: ${c.courseName}`
-                            : "Học viên",
+                        name: c.user?.username || c.user?.fullName || "Học viên",
+                        avatar: getAvatarUrl(c.user?.avatar),
+                        courseName: c.course?.course_name || "Khóa học",
                         quote: c.content || "Không có nội dung",
-                        rating: c.rating,
+                        rating: c.rating || 0,
+                        createdAt: c.createdAt,
                     }));
                     setTestimonials(mapped);
                     setTestimonialIndex(0);
@@ -270,22 +269,19 @@ function Home() {
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 gap-2 text-[13px] text-gray-600">
+                <div className="grid grid-cols-2 gap-2 text-[13px] text-gray-600 mb-2">
                     <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faClock} className="text-indigo-500" /> <span>{getCourseDurationText(course)}</span></div>
                     <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faPlayCircle} className="text-indigo-500" /> <span>{course.lessonsCount ?? course.numLessons ?? 0} bài giảng</span></div>
-                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faQuestionCircle} className="text-indigo-500" /> <span>{course.questionsCount ?? course.numQuestions ?? 0} câu hỏi</span></div>
-                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faStar} className="text-yellow-500" /> <span>{(course.rating || 0).toFixed ? (course.rating || 0).toFixed(1) : (course.rating || 0)}</span></div>
+                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faQuestionCircle} className="text-indigo-500" /> <span>{course.commentsCount ?? course.questionsCount ?? course.numQuestions ?? 0} bình luận</span></div>
+                    <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faStar} className="text-yellow-500" /> <span>{((course.rating || course.stars || 0).toFixed ? (course.rating || course.stars || 0).toFixed(1) : (course.rating || course.stars || 0))}</span></div>
                 </div>
 
-                {/* Rating (optional) */}
-                {(course.rating || course.stars) && (
-                    <div className="mt-1 flex items-center gap-1 text-amber-500 text-sm">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                            <span key={i}>{(course.rating || course.stars || 0) > i ? '★' : '☆'}</span>
-                        ))}
-                        <span className="text-gray-600 ml-1">{(course.rating || course.stars)?.toFixed ? (course.rating || course.stars).toFixed(1) : (course.rating || course.stars)}</span>
-                    </div>
-                )}
+                {/* Rating stars */}
+                <div className="flex items-center gap-1 text-amber-500 text-sm mb-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                        <span key={i}>{(course.rating || course.stars || 0) > i ? '★' : '☆'}</span>
+                    ))}
+                </div>
 
                 {/* Price */}
                 <div className="mt-3 flex items-end justify-between">
@@ -434,9 +430,13 @@ function Home() {
                                                     <p className="text-sm font-bold text-orange-600 mb-2">
                                                         {course.price ? `${Number(course.price).toLocaleString()}đ` : 'Miễn phí'}
                                                     </p>
-                                                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                                                        <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faUsers} className="text-indigo-500" /> <span>{course.students || 0}</span></div>
-                                                        <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faClock} className="text-indigo-500" /> <span>{course.duration || '—'}</span></div>
+                                                    <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                                                        <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faClock} className="text-indigo-500" /> <span>{getCourseDurationText(course)}</span></div>
+                                                        <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faPlayCircle} className="text-indigo-500" /> <span>{course.lessonsCount ?? course.numLessons ?? 0} bài giảng</span></div>
+                                                        <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faQuestionCircle} className="text-indigo-500" /> <span>{course.commentsCount ?? course.questionsCount ?? course.numQuestions ?? 0} bình luận</span></div>
+                                                        {(course.rating || course.stars) && (
+                                                            <div className="flex items-center gap-1.5"><FontAwesomeIcon icon={faStar} className="text-yellow-500" /> <span>{((course.rating || course.stars || 0).toFixed ? (course.rating || course.stars || 0).toFixed(1) : (course.rating || course.stars || 0))}</span></div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -611,40 +611,96 @@ function Home() {
                 <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-8">
                     {/* Testimonials */}
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 hover:shadow-2xl transition-shadow duration-300">
-                        <h3 className="text-2xl font-extrabold mb-6 text-gray-900">Cảm nhận học viên</h3>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-2xl font-extrabold text-gray-900">Cảm nhận học viên</h3>
+                            {testimonials.length > 0 && (
+                                <span className="text-sm text-gray-500">{testimonialIndex + 1}/{testimonials.length}</span>
+                            )}
+                        </div>
                         {testimonials.length > 0 ? (
                             <>
-                                <div className="flex gap-5 items-start">
-                                    <img
-                                        src={getAvatarUrl(testimonials[testimonialIndex]?.avatar)}
-                                        alt="avatar"
-                                        className="h-24 w-24 rounded-full object-cover border-4 border-indigo-100 shadow-md"
-                                        onError={(e) => { e.target.onerror = null; e.target.src = userAvatar; }}
-                                    />
-                                    <div className="flex-1">
-                                        <div className="font-bold text-lg text-gray-900 mb-1">{testimonials[testimonialIndex]?.name}</div>
-                                        <div className="text-gray-600 text-sm mb-4">{testimonials[testimonialIndex]?.info}</div>
-                                        <blockquote className="text-gray-800 text-lg leading-relaxed italic border-l-4 border-indigo-500 pl-4">
+                                <div className="flex gap-5 items-start mb-6 animate-fadeIn">
+                                    <div className="relative flex-shrink-0">
+                                        <img
+                                            src={getAvatarUrl(testimonials[testimonialIndex]?.avatar)}
+                                            alt="avatar"
+                                            className="h-20 w-20 rounded-full object-cover border-4 border-indigo-100 shadow-lg ring-2 ring-indigo-50"
+                                            onError={(e) => { e.target.onerror = null; e.target.src = userAvatar; }}
+                                        />
+                                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center border-2 border-white">
+                                            <FontAwesomeIcon icon={faStar} className="text-yellow-300 text-xs" />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="font-bold text-lg text-gray-900">{testimonials[testimonialIndex]?.name}</div>
+                                            {testimonials[testimonialIndex]?.rating > 0 && (
+                                                <div className="flex items-center gap-1">
+                                                    {Array.from({ length: 5 }).map((_, i) => (
+                                                        <FontAwesomeIcon
+                                                            key={i}
+                                                            icon={faStar}
+                                                            className={`text-xs ${i < testimonials[testimonialIndex]?.rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                                                        />
+                                                    ))}
+                                                    <span className="text-sm text-gray-600 ml-1">{testimonials[testimonialIndex]?.rating}.0</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-indigo-600 text-sm font-medium mb-3 flex items-center gap-1">
+                                            <FontAwesomeIcon icon={faBookOpen} className="text-xs" />
+                                            <span className="truncate">{testimonials[testimonialIndex]?.courseName}</span>
+                                        </div>
+                                        <blockquote className="text-gray-700 text-base leading-relaxed border-l-4 border-indigo-500 pl-4 italic">
                                             "{testimonials[testimonialIndex]?.quote}"
                                         </blockquote>
                                     </div>
                                 </div>
-                                <div className="mt-6 flex gap-2 justify-center">
-                                    {testimonials.map((t, idx) => (
-                                        <button
-                                            key={t.id}
-                                            onClick={() => setTestimonialIndex(idx)}
-                                            className={`h-2.5 rounded-full transition-all duration-300 ${testimonialIndex === idx
-                                                ? "bg-indigo-600 w-8"
-                                                : "bg-gray-300 w-2.5 hover:bg-gray-400"
-                                                }`}
-                                            aria-label={`testimonial-${idx + 1}`}
-                                        />
-                                    ))}
+                                <div className="flex items-center justify-between">
+                                    <div className="flex gap-2 justify-center flex-1">
+                                        {testimonials.map((t, idx) => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => setTestimonialIndex(idx)}
+                                                className={`h-2.5 rounded-full transition-all duration-300 ${testimonialIndex === idx
+                                                    ? "bg-indigo-600 w-8 shadow-md"
+                                                    : "bg-gray-300 w-2.5 hover:bg-gray-400"
+                                                    }`}
+                                                aria-label={`testimonial-${idx + 1}`}
+                                            />
+                                        ))}
+                                    </div>
+                                    {testimonials.length > 1 && (
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setTestimonialIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length)}
+                                                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                                                aria-label="Previous"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onClick={() => setTestimonialIndex((prev) => (prev + 1) % testimonials.length)}
+                                                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                                                aria-label="Next"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         ) : (
-                            <div className="text-center text-gray-500 py-6">Chưa có cảm nhận nào</div>
+                            <div className="text-center text-gray-500 py-12">
+                                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                                    <FontAwesomeIcon icon={faStar} className="text-2xl text-gray-400" />
+                                </div>
+                                <p>Chưa có cảm nhận nào</p>
+                            </div>
                         )}
                     </div>
 
