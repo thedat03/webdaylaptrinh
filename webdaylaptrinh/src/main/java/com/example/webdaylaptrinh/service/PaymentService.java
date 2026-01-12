@@ -1,17 +1,22 @@
 package com.example.webdaylaptrinh.service;
 
 import com.example.webdaylaptrinh.config.VnPayProperties;
+import com.example.webdaylaptrinh.dto.CartPaymentRequest;
 import com.example.webdaylaptrinh.dto.PaymentAdminView;
 import com.example.webdaylaptrinh.dto.PaymentRequest;
 import com.example.webdaylaptrinh.dto.PaymentStatusResponse;
 import com.example.webdaylaptrinh.dto.PaymentUrlResponse;
 import com.example.webdaylaptrinh.entity.Course;
 import com.example.webdaylaptrinh.entity.Payment;
+import com.example.webdaylaptrinh.entity.PaymentCourse;
 import com.example.webdaylaptrinh.entity.User;
 import com.example.webdaylaptrinh.enums.PaymentStatus;
+import com.example.webdaylaptrinh.entity.Promotion;
 import com.example.webdaylaptrinh.repository.CourseRepository;
+import com.example.webdaylaptrinh.repository.PaymentCourseRepository;
 import com.example.webdaylaptrinh.repository.PaymentRepository;
 import com.example.webdaylaptrinh.repository.UserRepository;
+import com.example.webdaylaptrinh.service.PromotionService;
 import com.example.webdaylaptrinh.util.VnPayUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -40,9 +46,11 @@ public class PaymentService {
     private static final DateTimeFormatter VNP_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final PaymentRepository paymentRepository;
+    private final PaymentCourseRepository paymentCourseRepository;
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
     private final LearningService learningService;
+    private final PromotionService promotionService;
     private final VnPayProperties vnPayProperties;
     private final NotificationService notificationService;
 
@@ -194,6 +202,149 @@ public class PaymentService {
         return paymentRepository.findAllByUser(user);
     }
 
+    public PaymentUrlResponse createCartPayment(CartPaymentRequest request, String clientIp) {
+        User user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (request.getCourseIds() == null || request.getCourseIds().isEmpty()) {
+            throw new IllegalArgumentException("Course IDs cannot be empty");
+        }
+
+        // Validate all courses exist and user is not enrolled
+        List<Course> courses = new ArrayList<>();
+        long totalAmount = 0;
+        List<String> courseNames = new ArrayList<>();
+
+        for (UUID courseId : request.getCourseIds()) {
+            Course course = courseRepository.findById(courseId)
+                    .orElseThrow(() -> new IllegalArgumentException("Course not found: " + courseId));
+
+            if (learningService.isUserEnrolled(user, course)) {
+                throw new IllegalStateException("User already enrolled to course: " + course.getCourse_name());
+            }
+
+            courses.add(course);
+            totalAmount += course.getPrice();
+            courseNames.add(course.getCourse_name());
+        }
+
+        // Apply promotion code if provided
+        Promotion promotion = null;
+        long discountAmount = 0;
+        if (StringUtils.hasText(request.getPromotionCode())) {
+            promotion = promotionService.getPromotionByCode(request.getPromotionCode());
+            if (promotion != null) {
+                LocalDateTime now = LocalDateTime.now();
+                LocalDateTime startDate = promotion.getStart_date();
+                LocalDateTime endDate = promotion.getEnd_date();
+
+                if (promotion.getIs_active() && now.isAfter(startDate) && now.isBefore(endDate)) {
+                    discountAmount = (long) (totalAmount * promotion.getDiscount_percent() / 100.0);
+                    totalAmount = totalAmount - discountAmount;
+                } else {
+                    throw new IllegalStateException("Mã khuyến mãi không hợp lệ hoặc đã hết hạn");
+                }
+            } else {
+                throw new IllegalArgumentException("Mã khuyến mãi không tồn tại");
+            }
+        }
+
+        String txnRef = generateTxnRef();
+        String locale = StringUtils.hasText(request.getLocale()) ? request.getLocale() : vnPayProperties.getLocale();
+        String orderInfoRaw = String.format(Locale.ENGLISH, "Pay_%s_for_%d_courses", user.getUsername(), courses.size());
+        if (promotion != null) {
+            orderInfoRaw += "_PROMO_" + promotion.getCode();
+        }
+        String orderInfo = sanitizeOrderInfo(orderInfoRaw);
+        String createDate = LocalDateTime.now().format(VNP_DATE_FORMAT);
+        String expireDate = LocalDateTime.now()
+                .plusMinutes(Math.max(1, vnPayProperties.getExpireMinutes()))
+                .format(VNP_DATE_FORMAT);
+
+        Map<String, String> params = new HashMap<>();
+        params.put("vnp_Version", vnPayProperties.getVersion());
+        params.put("vnp_Command", vnPayProperties.getCommand());
+        params.put("vnp_TmnCode", vnPayProperties.getTmnCode());
+        params.put("vnp_Amount", String.valueOf(totalAmount * 100));
+        params.put("vnp_CurrCode", vnPayProperties.getCurrCode());
+        params.put("vnp_TxnRef", txnRef);
+        params.put("vnp_OrderInfo", orderInfo);
+        params.put("vnp_OrderType", vnPayProperties.getOrderType());
+        params.put("vnp_Locale", locale);
+        params.put("vnp_ReturnUrl", vnPayProperties.getReturnUrl());
+        params.put("vnp_IpAddr", normalizeIp(clientIp));
+        params.put("vnp_CreateDate", createDate);
+        params.put("vnp_ExpireDate", expireDate);
+
+        if (StringUtils.hasText(request.getBankCode())) {
+            params.put("vnp_BankCode", request.getBankCode());
+        }
+
+        // Build hash data & query string
+        List<String> fieldNames = new ArrayList<>(params.keySet());
+        Collections.sort(fieldNames);
+
+        StringBuilder hashData = new StringBuilder();
+        StringBuilder query = new StringBuilder();
+
+        boolean firstParam = true;
+        for (String fieldName : fieldNames) {
+            String fieldValue = params.get(fieldName);
+            if (!StringUtils.hasText(fieldValue)) {
+                continue;
+            }
+
+            if (!firstParam) {
+                hashData.append('&');
+                query.append('&');
+            }
+
+            hashData.append(fieldName);
+            hashData.append('=');
+            hashData.append(encode(fieldValue));
+
+            query.append(encode(fieldName));
+            query.append('=');
+            query.append(encode(fieldValue));
+
+            firstParam = false;
+        }
+
+        String secureHash = VnPayUtils.hmacSHA512(vnPayProperties.getHashSecret(), hashData.toString());
+        String paymentUrl = vnPayProperties.getPayUrl() + "?" + query + "&vnp_SecureHash=" + secureHash;
+
+        // Create payment with first course (for backward compatibility)
+        Payment payment = Payment.builder()
+                .user(user)
+                .course(courses.get(0))
+                .amount(totalAmount)
+                .currency(vnPayProperties.getCurrCode())
+                .txnRef(txnRef)
+                .orderInfo(orderInfo)
+                .orderType(vnPayProperties.getOrderType())
+                .locale(locale)
+                .bankCode(request.getBankCode())
+                .ipAddress(clientIp)
+                .status(PaymentStatus.PENDING)
+                .build();
+        payment = paymentRepository.save(payment);
+
+        // Create PaymentCourse entries for all courses
+        for (Course course : courses) {
+            PaymentCourse paymentCourse = PaymentCourse.builder()
+                    .payment(payment)
+                    .course(course)
+                    .build();
+            paymentCourseRepository.save(paymentCourse);
+        }
+
+        return PaymentUrlResponse.builder()
+                .paymentUrl(paymentUrl)
+                .txnRef(txnRef)
+                .amount(totalAmount)
+                .build();
+    }
+
     private PaymentStatusResponse processGatewayCallback(Map<String, String> rawParams) {
         if (!rawParams.containsKey("vnp_SecureHash")) {
             return null;
@@ -316,7 +467,17 @@ public class PaymentService {
             payment.setStatus(PaymentStatus.PAID);
             paymentRepository.save(payment);
             try {
-                learningService.enrollUserInCourse(payment.getUser(), payment.getCourse());
+                // Check if this is a cart payment (has PaymentCourse entries)
+                List<PaymentCourse> paymentCourses = paymentCourseRepository.findAllByPayment(payment);
+                if (!paymentCourses.isEmpty()) {
+                    // Enroll user in all courses from cart
+                    for (PaymentCourse paymentCourse : paymentCourses) {
+                        learningService.enrollUserInCourse(payment.getUser(), paymentCourse.getCourse());
+                    }
+                } else {
+                    // Single course payment (backward compatibility)
+                    learningService.enrollUserInCourse(payment.getUser(), payment.getCourse());
+                }
                 // Tạo thông báo cho user, instructor và admin
                 notificationService.notifyPaymentSuccess(payment);
             } catch (Exception e) {

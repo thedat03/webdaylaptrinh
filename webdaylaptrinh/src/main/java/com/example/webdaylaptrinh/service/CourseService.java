@@ -75,6 +75,15 @@ public class CourseService {
         return courses;
     }
 
+    public List<Course> searchCourses(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return getAllCoursesFiltered(null, null);
+        }
+        List<Course> courses = courseRepository.searchCourses(CourseStatus.APPROVED, keyword.trim());
+        courses.forEach(this::loadCourseStatistics);
+        return courses;
+    }
+
     /**
      * Load modules, lessons và comments cho course để tính toán statistics
      * Sau khi tính toán xong, modules sẽ được set null để tránh circular reference trong JSON

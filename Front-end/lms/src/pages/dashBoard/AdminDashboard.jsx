@@ -7,6 +7,7 @@ import Users from "./DUser";
 import CategoryManagement from "./CategoryManagement";
 import BannerManagement from "./BannerManagement";
 import NewsManagement from "./NewsManagement";
+import PromotionManagement from "./PromotionManagement";
 import CommentManagement from "./CommentManagement";
 import PaymentManagement from "./PaymentManagement";
 import AdminCourseReview from "./AdminCourseReview";
@@ -40,6 +41,8 @@ function AdminDashboard() {
                 return <BannerManagement />;
             case "news":
                 return <NewsManagement />;
+            case "promotions":
+                return <PromotionManagement />;
             case "comments":
                 return <CommentManagement />;
             case "payments":

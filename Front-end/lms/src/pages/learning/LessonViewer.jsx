@@ -5,6 +5,7 @@ import CommentSection from "../../Components/common/CommentSection";
 import logo from "../../assets/images/logo.jpg";
 import { learningService } from "../../api/learning.service";
 import { codeService } from "../../api/code.service";
+import { lessonProgressService } from "../../api/lessonProgress.service";
 import { JUDGE0_LANGUAGE_MAP } from "../../constants/judge0Languages";
 import { parseMarkdownToHTML } from "../../utils/markdownParser";
 
@@ -81,6 +82,8 @@ export default function LessonViewer() {
     const userId = localStorage.getItem("id");
     const [accessLoading, setAccessLoading] = useState(true);
     const [canAccess, setCanAccess] = useState(false);
+    const [lessonCompleted, setLessonCompleted] = useState(false);
+    const [completedLessonsSet, setCompletedLessonsSet] = useState(new Set());
 
     // Tìm module_id của lesson hiện tại
     const currentModuleId = useMemo(() => {
@@ -173,10 +176,15 @@ export default function LessonViewer() {
 
     const totalLessons = lessonList.length;
     const completedLessons = useMemo(() => {
-        return lessonList.filter((item) =>
-            item.completed || item.isCompleted || item.status === "COMPLETED"
-        ).length;
-    }, [lessonList]);
+        return lessonList.filter((item) => {
+            // Kiểm tra từ completedLessonsSet trước
+            if (completedLessonsSet.has(item.lesson_id)) {
+                return true;
+            }
+            // Fallback về các trường cũ
+            return item.completed || item.isCompleted || item.status === "COMPLETED";
+        }).length;
+    }, [lessonList, completedLessonsSet]);
 
     const currentIndex = useMemo(() => {
         return lessonList.findIndex((item) => item.lesson_id === lesson?.lesson_id);
@@ -221,6 +229,36 @@ export default function LessonViewer() {
         return null;
     }, [lesson]);
 
+    const checkLessonCompletionStatus = async () => {
+        if (!lesson?.lesson_id || !userId) return;
+        try {
+            const result = await lessonProgressService.checkLessonCompleted(userId, lesson.lesson_id);
+            if (result.success) {
+                setLessonCompleted(result.data);
+            }
+        } catch (error) {
+            console.error("Error checking lesson completion:", error);
+        }
+    };
+
+    const loadAllLessonsCompletionStatus = async () => {
+        if (!courseId || !userId) return;
+        try {
+            const result = await lessonProgressService.getLessonsProgressByCourse(userId, courseId);
+            if (result.success && result.data) {
+                const completedSet = new Set();
+                result.data.forEach(progress => {
+                    if (progress.isCompleted && progress.lesson?.lesson_id) {
+                        completedSet.add(progress.lesson.lesson_id);
+                    }
+                });
+                setCompletedLessonsSet(completedSet);
+            }
+        } catch (error) {
+            console.error("Error loading lessons completion status:", error);
+        }
+    };
+
     useEffect(() => {
         setCode(lesson?.codeSnippet || "");
         setTestCases(parsedLessonTestCases);
@@ -228,7 +266,50 @@ export default function LessonViewer() {
         setExecutionResults([]);
         setRunSummary(null);
         setRunError("");
-    }, [lesson, parsedLessonTestCases]);
+
+        // Kiểm tra trạng thái hoàn thành của bài học
+        if (lesson?.lesson_id && userId) {
+            checkLessonCompletionStatus();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lesson?.lesson_id, parsedLessonTestCases, userId]);
+
+    // Load trạng thái hoàn thành của tất cả bài học trong khóa học
+    useEffect(() => {
+        if (courseId && userId) {
+            loadAllLessonsCompletionStatus();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [courseId, userId]);
+
+    const markLessonAsCompleted = async () => {
+        if (!lesson?.lesson_id || !userId || lessonCompleted) return;
+
+        try {
+            const result = await lessonProgressService.markLessonCompleted(userId, lesson.lesson_id);
+            if (result.success) {
+                setLessonCompleted(true);
+                // Cập nhật set hoàn thành
+                setCompletedLessonsSet(prev => new Set([...prev, lesson.lesson_id]));
+                message.success("Bài học đã được đánh dấu hoàn thành!");
+
+                // Lưu timestamp vào localStorage để các component khác biết có cập nhật
+                localStorage.setItem('lessonProgressLastUpdate', Date.now().toString());
+
+                // Dispatch custom event để các component khác biết cần refresh
+                window.dispatchEvent(new CustomEvent('lessonCompleted', {
+                    detail: {
+                        lessonId: lesson.lesson_id,
+                        courseId: courseId,
+                        userId: userId
+                    }
+                }));
+            }
+        } catch (error) {
+            console.error("Error marking lesson as completed:", error);
+            message.error("Không thể đánh dấu bài học đã hoàn thành");
+        }
+    };
 
     // --- Handlers (Giữ nguyên) ---
     if (!lesson) return null; // Fallback handled in original code, shortened here for brevity
@@ -274,6 +355,8 @@ export default function LessonViewer() {
                 setRunSummary({ ok: response.data.overallPassed, message: response.data.message });
                 if (response.data.overallPassed) {
                     message.success("Chúc mừng! Bạn đã vượt qua tất cả test case.");
+                    // Tự động đánh dấu bài học đã hoàn thành
+                    await markLessonAsCompleted();
                 } else {
                     message.warning("Một số test case chưa đạt. Kiểm tra lại kết quả.");
                 }
@@ -290,7 +373,7 @@ export default function LessonViewer() {
         }
     };
 
-    const handleQuizSubmit = () => {
+    const handleQuizSubmit = async () => {
         if (selectedAnswer === null) {
             message.warning("Vui lòng chọn một đáp án");
             return;
@@ -299,6 +382,8 @@ export default function LessonViewer() {
         setQuizResult(isCorrect);
         if (isCorrect) {
             message.success("Chúc mừng! Bạn đã trả lời đúng!");
+            // Tự động đánh dấu bài học đã hoàn thành
+            await markLessonAsCompleted();
         } else {
             message.error("Đáp án không đúng. Vui lòng thử lại!");
         }
@@ -386,13 +471,34 @@ export default function LessonViewer() {
                         {/* Aspect Ratio Container */}
                         <div className={`w-full ${lesson.type === "QUIZ" ? "min-h-[calc(100vh-50px-60px)]" : "aspect-video max-h-[calc(100vh-50px-60px)]"} mx-auto ${lesson.type === "VIDEO" ? "bg-black" : "bg-white"} flex items-center justify-center`}>
                             {lesson.type === "VIDEO" ? (
-                                <iframe
-                                    src={embedSrc}
-                                    title={lesson.title}
-                                    className="w-full h-full"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                    allowFullScreen
-                                />
+                                <div className="relative w-full h-full">
+                                    <iframe
+                                        src={embedSrc}
+                                        title={lesson.title}
+                                        className="w-full h-full"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                        onLoad={() => {
+                                            // Cập nhật thời gian truy cập khi video load
+                                            if (userId && lesson.lesson_id) {
+                                                lessonProgressService.updateLessonAccess(userId, lesson.lesson_id);
+                                            }
+                                        }}
+                                    />
+                                    {!lessonCompleted && (
+                                        <div className="absolute bottom-4 right-4">
+                                            <button
+                                                onClick={markLessonAsCompleted}
+                                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-lg flex items-center gap-2"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                                Đánh dấu đã xong
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             ) : lesson.type === "CODE" ? (
                                 <div className="flex flex-col w-full h-full bg-white text-gray-800 overflow-hidden">
                                     <div className="flex-1 flex gap-0 h-full">
@@ -557,70 +663,85 @@ export default function LessonViewer() {
                                     </div>
                                 </div>
                             ) : lesson.type === "MATERIAL" ? (
-                                <div className="w-full h-full bg-gradient-to-br from-gray-50 via-white to-gray-50 overflow-y-auto">
-                                    <div className="max-w-4xl mx-auto p-8 lg:p-12">
-                                        {/* Header Section */}
-                                        <div className="mb-8 pb-6 border-b border-gray-200">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold uppercase tracking-wide">
-                                                    Tài liệu
-                                                </span>
-                                                {lesson.duration && (
-                                                    <span className="text-sm text-gray-500 flex items-center gap-1">
-                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-                                                        </svg>
-                                                        {lesson.duration}
+                                <div className="relative w-full h-full">
+                                    <div className="w-full h-full bg-gradient-to-br from-gray-50 via-white to-gray-50 overflow-y-auto">
+                                        <div className="max-w-4xl mx-auto p-8 lg:p-12">
+                                            {/* Header Section */}
+                                            <div className="mb-8 pb-6 border-b border-gray-200">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold uppercase tracking-wide">
+                                                        Tài liệu
                                                     </span>
-                                                )}
-                                            </div>
-                                            <div className="mb-4">
-                                                <h1 className="text-4xl font-bold text-gray-900 leading-tight tracking-tight">
-                                                    {lesson.title}
-                                                </h1>
-                                            </div>
-                                            <div className="flex items-center gap-4 text-sm text-gray-500">
-                                                <span className="flex items-center gap-1">
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                    </svg>
-                                                    Cập nhật tháng 11 năm 2025
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Content Section */}
-                                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 lg:p-10">
-                                            <div className="max-w-none">
-                                                <div
-                                                    className="text-gray-800 break-words material-content text-left"
-                                                    style={{
-                                                        fontSize: '16px',
-                                                        lineHeight: '1.8',
-                                                        textAlign: 'left'
-                                                    }}
-                                                >
-                                                    {lesson.description ? (
-                                                        <div
-                                                            className="text-left"
-                                                            style={{ textAlign: 'left' }}
-                                                            dangerouslySetInnerHTML={{
-                                                                __html: parseMarkdownToHTML(lesson.description)
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        <div className="text-center py-12 text-gray-400">
-                                                            <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    {lesson.duration && (
+                                                        <span className="text-sm text-gray-500 flex items-center gap-1">
+                                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
                                                             </svg>
-                                                            <p className="text-lg">Chưa có nội dung cho tài liệu này.</p>
-                                                        </div>
+                                                            {lesson.duration}
+                                                        </span>
                                                     )}
                                                 </div>
+                                                <div className="mb-4">
+                                                    <h1 className="text-4xl font-bold text-gray-900 leading-tight tracking-tight">
+                                                        {lesson.title}
+                                                    </h1>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                                    <span className="flex items-center gap-1">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                        </svg>
+                                                        Cập nhật tháng 11 năm 2025
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
 
+                                            {/* Content Section */}
+                                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 lg:p-10">
+                                                <div className="max-w-none">
+                                                    <div
+                                                        className="text-gray-800 break-words material-content text-left"
+                                                        style={{
+                                                            fontSize: '16px',
+                                                            lineHeight: '1.8',
+                                                            textAlign: 'left'
+                                                        }}
+                                                    >
+                                                        {lesson.description ? (
+                                                            <div
+                                                                className="text-left"
+                                                                style={{ textAlign: 'left' }}
+                                                                dangerouslySetInnerHTML={{
+                                                                    __html: parseMarkdownToHTML(lesson.description)
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <div className="text-center py-12 text-gray-400">
+                                                                <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                </svg>
+                                                                <p className="text-lg">Chưa có nội dung cho tài liệu này.</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
                                     </div>
+                                    {!lessonCompleted && (
+                                        <div className="absolute bottom-4 right-4">
+                                            <button
+                                                onClick={markLessonAsCompleted}
+                                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-lg flex items-center gap-2"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                                Đánh dấu đã xong
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-white/50 text-lg">Nội dung bài đọc / Tài liệu</div>
@@ -691,7 +812,7 @@ export default function LessonViewer() {
                                                         <div className="flex flex-col items-center gap-1 min-w-[24px] pt-1">
                                                             {isActive ? (
                                                                 <div className="w-1.5 h-1.5 rounded-full bg-[#f05123] mb-1"></div>
-                                                            ) : (l.completed || l.isCompleted) ? (
+                                                            ) : (completedLessonsSet.has(l.lesson_id) || l.completed || l.isCompleted) ? (
                                                                 <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
                                                             ) : (
                                                                 <div className="w-4 h-4 rounded-full border border-gray-300"></div>

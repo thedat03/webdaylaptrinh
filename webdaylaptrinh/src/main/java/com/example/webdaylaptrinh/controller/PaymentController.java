@@ -1,6 +1,7 @@
 package com.example.webdaylaptrinh.controller;
 
 import com.example.webdaylaptrinh.config.VnPayProperties;
+import com.example.webdaylaptrinh.dto.CartPaymentRequest;
 import com.example.webdaylaptrinh.dto.PaymentAdminView;
 import com.example.webdaylaptrinh.dto.PaymentRequest;
 import com.example.webdaylaptrinh.dto.PaymentStatusResponse;
@@ -35,6 +36,12 @@ public class PaymentController {
     public PaymentUrlResponse createPayment(@RequestBody PaymentRequest request, HttpServletRequest httpRequest) {
         String clientIp = getClientIp(httpRequest);
         return paymentService.createPayment(request, clientIp);
+    }
+
+    @PostMapping("/cart")
+    public PaymentUrlResponse createCartPayment(@RequestBody CartPaymentRequest request, HttpServletRequest httpRequest) {
+        String clientIp = getClientIp(httpRequest);
+        return paymentService.createCartPayment(request, clientIp);
     }
 
     @GetMapping("/vnpay-return")

@@ -23,6 +23,10 @@ import LessonViewer from './pages/learning/LessonViewer';
 import PaymentResult from './pages/payment/PaymentResult';
 import Chat from './pages/chat/Chat';
 import Notifications from './pages/notifications/Notifications';
+import Friends from './pages/profile/Friends';
+import PaymentHistory from './pages/profile/PaymentHistory';
+import Cart from './pages/cart/Cart';
+import PromotionDetail from './pages/promotions/PromotionDetail';
 
 function App() {
   return (
@@ -52,6 +56,10 @@ function App() {
           <Route path='/Performance' element={<Performance />} />
           <Route path='/chat' element={<Chat />} />
           <Route path='/notifications' element={<Notifications />} />
+          <Route path='/friends' element={<Friends />} />
+          <Route path='/payment-history' element={<PaymentHistory />} />
+          <Route path='/cart' element={<Cart />} />
+          <Route path='/promotion/:id' element={<PromotionDetail />} />
           <Route path='*' element={<ErrorPage />} />
         </Routes>
       </BrowserRouter>

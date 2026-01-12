@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Navbar from "../../Components/common/Navbar";
 import ImgUpload from "./ImgUpload";
 import Performance from "./Performance";
+import LearningPath from "./LearningPath";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
     faGithub,
@@ -18,18 +20,28 @@ import {
     faMapMarkerAlt,
     faBookOpen,
     faEdit,
-    faTrophy
+    faTrophy,
+    faRoute
 } from "@fortawesome/free-solid-svg-icons";
 import { profileService } from "../../api/profile.service";
 import EditProfileModal from "./EditProfileModal";
 
 function Profile() {
     const id = localStorage.getItem("id");
+    const [searchParams, setSearchParams] = useSearchParams();
     const [userDetails, setUserDetails] = useState(null);
     const [profileImage, setProfileImage] = useState(localStorage.getItem("profileImage") || "");
     const [loadingImage, setLoadingImage] = useState(true);
-    const [activeTab, setActiveTab] = useState("overview");
+    const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+
+    // Cập nhật activeTab khi query param thay đổi
+    useEffect(() => {
+        const tab = searchParams.get("tab");
+        if (tab === "performance" || tab === "learningPath") {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         async function fetchUserDetails() {
@@ -185,7 +197,10 @@ function Profile() {
                         {/* Tab Navigation */}
                         <div className="flex space-x-1 bg-gray-100 rounded-xl p-1">
                             <button
-                                onClick={() => setActiveTab("overview")}
+                                onClick={() => {
+                                    setActiveTab("overview");
+                                    setSearchParams({});
+                                }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "overview"
                                     ? "bg-white text-indigo-600 shadow-sm"
                                     : "text-gray-600 hover:text-gray-800"
@@ -195,7 +210,10 @@ function Profile() {
                                 Tổng quan
                             </button>
                             <button
-                                onClick={() => setActiveTab("performance")}
+                                onClick={() => {
+                                    setActiveTab("performance");
+                                    setSearchParams({ tab: "performance" });
+                                }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "performance"
                                     ? "bg-white text-indigo-600 shadow-sm"
                                     : "text-gray-600 hover:text-gray-800"
@@ -203,6 +221,19 @@ function Profile() {
                             >
                                 <FontAwesomeIcon icon={faTrophy} />
                                 Thành tích
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setActiveTab("learningPath");
+                                    setSearchParams({ tab: "learningPath" });
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "learningPath"
+                                    ? "bg-white text-indigo-600 shadow-sm"
+                                    : "text-gray-600 hover:text-gray-800"
+                                    }`}
+                            >
+                                <FontAwesomeIcon icon={faRoute} />
+                                Lộ trình học tập
                             </button>
                         </div>
                     </div>
@@ -256,8 +287,10 @@ function Profile() {
                             </div>
                         </div>
                     </div>
-                ) : (
+                ) : activeTab === "performance" ? (
                     <Performance />
+                ) : (
+                    <LearningPath />
                 )}
             </div>
 

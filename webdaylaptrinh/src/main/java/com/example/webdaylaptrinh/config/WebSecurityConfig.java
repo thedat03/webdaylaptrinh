@@ -59,6 +59,7 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/news/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/promotions/**").permitAll()
 
                         .requestMatchers(HttpMethod.POST, "/api/courses/**").hasAnyRole("ADMIN", "INSTRUCTOR")
                         .requestMatchers(HttpMethod.PUT, "/api/courses/**").hasAnyRole("ADMIN", "INSTRUCTOR")
@@ -73,6 +74,10 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/news/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/news/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/news/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/promotions/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/promotions/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/promotions/**").hasRole("ADMIN")
+                        .requestMatchers("/api/statistics/**").hasRole("ADMIN")
 
                         // Assessments, Enrollments, Feedback, Learning, Progress
                         .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")

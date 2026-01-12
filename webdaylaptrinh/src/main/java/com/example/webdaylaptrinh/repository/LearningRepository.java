@@ -21,4 +21,7 @@ public interface LearningRepository extends JpaRepository<Learning, UUID> {
 
     @Query("SELECT l FROM Learning l WHERE l.course.course_id = :courseId")
     List<Learning> findByCourse_CourseId(@Param("courseId") UUID courseId);
+    
+    @Query("SELECT COUNT(l) FROM Learning l WHERE l.course = :course")
+    long countByCourse(@Param("course") Course course);
 }

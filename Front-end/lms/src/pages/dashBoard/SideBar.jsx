@@ -10,6 +10,7 @@ function SideBar({ current, onSelect, onLogout }) {
         { key: "categories", label: "Danh mục", icon: "bx bxs-category" },
         { key: "banners", label: "Banner", icon: "bx bxs-image" },
         { key: "news", label: "Tin tức", icon: "bx bxs-news" },
+        { key: "promotions", label: "Khuyến mãi", icon: "bx bxs-tag" },
         { key: "comments", label: "Bình luận", icon: "bx bxs-comment-dots" },
         { key: "payments", label: "Thanh toán", icon: "bx bxs-credit-card" },
     ];

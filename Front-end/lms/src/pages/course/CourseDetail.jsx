@@ -8,6 +8,7 @@ import { courseService } from "../../api/course.service";
 import { commentService } from "../../api/comment.service";
 import { learningService } from "../../api/learning.service";
 import { paymentService } from "../../api/payment.service";
+import { cartService } from "../../api/cart.service";
 import { authService } from "../../api/auth.service";
 import { examService } from "../../api/exam.service";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -37,6 +38,7 @@ function CourseDetail() {
     const [checkingEnrollment, setCheckingEnrollment] = useState(false);
     const [hasPublishedExam, setHasPublishedExam] = useState(false);
     const [checkingExam, setCheckingExam] = useState(false);
+    const [addingToCart, setAddingToCart] = useState(false);
 
     const totalLessons = modules.reduce((sum, m) => sum + ((lessonsByModule[m.module_id] || []).length), 0);
     const totalDurationMinutes = useMemo(() => {
@@ -74,7 +76,7 @@ function CourseDetail() {
     const primaryActionLabel = useMemo(() => {
         if (isEnrolled) return "HỌC NGAY";
         const price = Number(course?.price || 0);
-        return price > 0 ? "THANH TOÁN QUA VNPAY" : "GHI DANH MIỄN PHÍ";
+        return price > 0 ? "THANH TOÁN QUA VNPAY" : "HỌC MIỄN PHÍ";
     }, [isEnrolled, course]);
 
     useEffect(() => {
@@ -146,6 +148,14 @@ function CourseDetail() {
                 setCheckingEnrollment(false);
                 return;
             }
+
+            // Free courses are accessible to everyone
+            if (course && (!course.price || Number(course.price) === 0)) {
+                setIsEnrolled(true);
+                setCheckingEnrollment(false);
+                return;
+            }
+
             if (!userId || !id) {
                 setIsEnrolled(false);
                 return;
@@ -162,7 +172,7 @@ function CourseDetail() {
             }
         };
         fetchEnrollment();
-    }, [userId, id]);
+    }, [userId, id, course]);
 
     useEffect(() => {
         const checkPublishedExam = async () => {
@@ -219,8 +229,11 @@ function CourseDetail() {
     const handleLessonClick = (lesson) => {
         // Giáo viên có thể xem tất cả bài học
         const isInstructor = authService.isInstructorAuthenticated();
-        if (!isEnrolled && !isInstructor) {
-            message.info("Vui lòng thanh toán/ghi danh để mở bài học.");
+        const isFreeCourse = !course.price || Number(course.price) === 0;
+
+        // Free courses are accessible to everyone, paid courses require enrollment
+        if (!isEnrolled && !isInstructor && !isFreeCourse) {
+            message.info("Vui lòng thanh toán để mở bài học.");
             return;
         }
         navigate(`/lesson/${lesson.lesson_id}`, {
@@ -228,7 +241,7 @@ function CourseDetail() {
         });
     };
 
-    const handleEnrollClick = async () => {
+    const handleAddToCart = async () => {
         if (!course) return;
         if (!userId) {
             message.info("Vui lòng đăng nhập để tiếp tục.");
@@ -236,34 +249,58 @@ function CourseDetail() {
             return;
         }
         if (isEnrolled) {
+            message.info("Bạn đã đăng ký khóa học này rồi.");
+            return;
+        }
+
+        setAddingToCart(true);
+        try {
+            const result = await cartService.addToCart(userId, course.course_id);
+            if (result.success) {
+                message.success("Đã thêm vào giỏ hàng!");
+                // Dispatch event to update cart count in Navbar
+                window.dispatchEvent(new Event('cartUpdated'));
+            } else {
+                if (result.error?.includes("already enrolled")) {
+                    message.warning("Bạn đã đăng ký khóa học này rồi.");
+                } else if (result.error?.includes("already in cart") || result.error?.includes("CONFLICT")) {
+                    message.info("Khóa học đã có trong giỏ hàng.");
+                } else {
+                    message.error(result.error || "Không thể thêm vào giỏ hàng.");
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            message.error("Lỗi khi thêm vào giỏ hàng.");
+        } finally {
+            setAddingToCart(false);
+        }
+    };
+
+    const handleEnrollClick = async () => {
+        if (!course) return;
+        if (isEnrolled) {
             handleGoToFirstLesson();
+            return;
+        }
+
+        const isFreeCourse = !course.price || Number(course.price) === 0;
+
+        // Free courses: allow access without purchase
+        if (isFreeCourse) {
+            handleGoToFirstLesson();
+            return;
+        }
+
+        // Paid courses: require payment (which auto-enrolls after success)
+        if (!userId) {
+            message.info("Vui lòng đăng nhập để tiếp tục.");
+            navigate("/login");
             return;
         }
 
         setEnrollError("");
         setEnrollMessage("");
-        const isFreeCourse = !course.price || Number(course.price) === 0;
-
-        if (isFreeCourse) {
-            setEnrollLoading(true);
-            try {
-                const result = await learningService.enrollCourse(userId, course.course_id);
-                if (result.success) {
-                    setEnrollMessage(result.data || "Đã ghi danh khoá học thành công.");
-                    setIsEnrolled(true);
-                    message.success("Bạn đã ghi danh thành công!");
-                } else {
-                    setEnrollError(result.error || "Không thể ghi danh khoá học.");
-                }
-            } catch (err) {
-                console.error(err);
-                setEnrollError("Hệ thống đang bận, vui lòng thử lại.");
-            } finally {
-                setEnrollLoading(false);
-            }
-            return;
-        }
-
         setEnrollLoading(true);
         try {
             localStorage.setItem("pendingCourseId", course.course_id);
@@ -577,7 +614,19 @@ function CourseDetail() {
                             {course.price ? `${Number(course.price).toLocaleString()}đ` : "Miễn phí"}
                         </div>
 
-                        {/* Register button */}
+                        {/* Add to Cart and Register buttons */}
+                        {!isEnrolled && Number(course.price || 0) > 0 && (
+                            <button
+                                onClick={handleAddToCart}
+                                disabled={addingToCart || checkingEnrollment}
+                                className={`w-full py-3 rounded-xl font-semibold transition mb-3 ${(addingToCart || checkingEnrollment)
+                                    ? "bg-gray-300 cursor-not-allowed text-gray-600"
+                                    : "bg-orange-500 hover:bg-orange-600 text-white"
+                                    }`}
+                            >
+                                {addingToCart ? "ĐANG THÊM..." : "THÊM VÀO GIỎ HÀNG"}
+                            </button>
+                        )}
                         <button
                             onClick={handleEnrollClick}
                             disabled={enrollLoading || checkingEnrollment}
@@ -599,7 +648,12 @@ function CourseDetail() {
 
                         {!isEnrolled && Number(course.price || 0) > 0 && (
                             <p className="text-xs text-gray-500 mb-2">
-                                Sau khi thanh toán thành công, hệ thống sẽ tự động mở toàn bộ bài học cho bạn.
+                                Sau khi thanh toán thành công, bạn sẽ được tự động ghi danh và mở toàn bộ bài học.
+                            </p>
+                        )}
+                        {Number(course.price || 0) === 0 && (
+                            <p className="text-xs text-gray-500 mb-2">
+                                Khóa học miễn phí - Bạn có thể học ngay mà không cần thanh toán.
                             </p>
                         )}
 

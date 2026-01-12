@@ -17,6 +17,7 @@ import { commentService } from "../../api/comment.service";
 import { courseService } from "../../api/course.service";
 import { categoryService } from "../../api/category.service";
 import { bannerService } from "../../api/banner.service";
+import { promotionService } from "../../api/promotion.service";
 
 function Home() {
     const navigate = useNavigate();
@@ -32,14 +33,41 @@ function Home() {
 
     // removed old countdown effect
 
-    // Load banners from API
+    // Load banners and promotions from API
     useEffect(() => {
-        const loadBanners = async () => {
+        const loadBannersAndPromotions = async () => {
             setBannersLoading(true);
             try {
-                const result = await bannerService.getAllBanners();
-                if (result.success && result.data && Array.isArray(result.data)) {
-                    const banners = result.data.map((banner) => ({
+                // Load promotions first (priority)
+                const promoResult = await promotionService.getAllPromotions();
+                const promotions = promoResult.success && Array.isArray(promoResult.data)
+                    ? promoResult.data
+                        .filter(promo => {
+                            const now = new Date();
+                            const startDate = new Date(promo.start_date);
+                            const endDate = new Date(promo.end_date);
+                            return promo.is_active && now >= startDate && now <= endDate;
+                        })
+                        .slice(0, 3) // Limit to 3 active promotions
+                        .map((promo) => ({
+                            id: `promo-${promo.promotion_id}`,
+                            src: promo.image_url?.startsWith("http") || promo.image_url?.startsWith("/api/")
+                                ? promo.image_url
+                                : promo.image_url
+                                    ? `/api/files/${promo.image_url}`
+                                    : null,
+                            alt: promo.title || "Khuyến mãi",
+                            title: promo.title,
+                            link: `/promotion/${promo.promotion_id}`,
+                            type: "promotion",
+                            promotion: promo,
+                        }))
+                    : [];
+
+                // Load banners
+                const bannerResult = await bannerService.getAllBanners();
+                const banners = bannerResult.success && bannerResult.data && Array.isArray(bannerResult.data)
+                    ? bannerResult.data.map((banner) => ({
                         id: banner.banner_id,
                         src: banner.image_url?.startsWith("http") || banner.image_url?.startsWith("/api/")
                             ? banner.image_url
@@ -47,21 +75,27 @@ function Home() {
                         alt: banner.title || "Banner",
                         title: banner.title,
                         link: banner.link_url,
-                    }));
-                    setBannerSlides(banners.length > 0 ? banners : [{ id: 1, src: bannerImg, alt: "Default Banner" }]);
-                } else {
-                    // Fallback to default banner if API fails
-                    setBannerSlides([{ id: 1, src: bannerImg, alt: "Default Banner" }]);
+                        type: "banner",
+                    }))
+                    : [];
+
+                // Combine: promotions first, then banners
+                const allSlides = [...promotions, ...banners];
+                setBannerSlides(allSlides.length > 0 ? allSlides : [{ id: 1, src: bannerImg, alt: "Default Banner", type: "banner" }]);
+
+                // Set first slide to be displayed (promotion if available)
+                if (promotions.length > 0) {
+                    setBannerCurrent(0);
                 }
             } catch (error) {
-                console.error("Error loading banners:", error);
-                setBannerSlides([{ id: 1, src: bannerImg, alt: "Default Banner" }]);
+                console.error("Error loading banners and promotions:", error);
+                setBannerSlides([{ id: 1, src: bannerImg, alt: "Default Banner", type: "banner" }]);
             } finally {
                 setBannersLoading(false);
             }
         };
-        loadBanners();
-    }, []); // defaultTestimonials is static literal; safe to keep deps empty
+        loadBannersAndPromotions();
+    }, []);
 
     // Auto-rotate banners
     useEffect(() => {
@@ -464,14 +498,43 @@ function Home() {
                                                 key={s.id}
                                                 className={`absolute inset-0 transition-opacity duration-700 ${bannerCurrent === idx ? "opacity-100 z-10" : "opacity-0 z-0"
                                                     }`}
-                                                onClick={() => s.link && window.open(s.link, "_blank")}
+                                                onClick={() => {
+                                                    if (s.link) {
+                                                        if (s.type === "promotion") {
+                                                            navigate(s.link);
+                                                        } else {
+                                                            window.open(s.link, "_blank");
+                                                        }
+                                                    }
+                                                }}
                                                 style={{ cursor: s.link ? "pointer" : "default" }}
                                             >
-                                                <img
-                                                    src={s.src}
-                                                    alt={s.alt}
-                                                    className="w-full h-[440px] object-cover"
-                                                />
+                                                {s.src ? (
+                                                    <img
+                                                        src={s.src}
+                                                        alt={s.alt}
+                                                        className="w-full h-[440px] object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-[440px] bg-gradient-to-br from-orange-500 via-red-500 to-pink-500 flex items-center justify-center">
+                                                        <div className="text-center text-white p-8">
+                                                            <div className="text-6xl mb-4">🎉</div>
+                                                            <h3 className="text-3xl font-bold mb-2">{s.title}</h3>
+                                                            {s.promotion && (
+                                                                <div className="text-4xl font-bold mb-2">
+                                                                    -{s.promotion.discount_percent}% OFF
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {/* Promotion badge overlay */}
+                                                {s.type === "promotion" && (
+                                                    <div className="absolute top-4 right-4 bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-full w-20 h-20 flex flex-col items-center justify-center shadow-2xl transform rotate-[-12deg]">
+                                                        <span className="text-2xl font-bold">-{s.promotion?.discount_percent}%</span>
+                                                        <span className="text-[10px]">OFF</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                         {/* Dots */}
@@ -741,21 +804,7 @@ function Home() {
                 </div>
             </section>
 
-            {/* CTA newsletter */}
-            <section className="px-6 py-14">
-                <div className="max-w-7xl mx-auto">
-                    <div className="rounded-2xl bg-white border border-indigo-200 shadow p-8 md:p-10 flex flex-col md:flex-row items-center gap-6">
-                        <div className="flex-1">
-                            <h3 className="text-2xl font-extrabold text-gray-900 mb-2">Nhận tin và ưu đãi từ LearnIT</h3>
-                            <p className="text-gray-600">Đăng ký email để nhận cập nhật khóa học, bài viết, và ưu đãi mới nhất.</p>
-                        </div>
-                        <div className="w-full md:w-auto flex gap-3">
-                            <input type="email" placeholder="Nhập email của bạn" className="flex-1 md:w-80 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                            <button className="px-5 py-3 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Đăng ký</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
+
 
             <Footer />
 

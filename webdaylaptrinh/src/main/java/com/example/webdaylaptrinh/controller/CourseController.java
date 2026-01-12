@@ -21,7 +21,12 @@ public class CourseController {
     @GetMapping
     public List<Course> getAllCourses(@RequestParam(value = "category", required = false) String category,
                                       @RequestParam(value = "free", required = false) Boolean free,
-                                      @RequestParam(value = "admin", required = false) Boolean admin) {
+                                      @RequestParam(value = "admin", required = false) Boolean admin,
+                                      @RequestParam(value = "search", required = false) String search) {
+        // Nếu có search keyword, thực hiện tìm kiếm
+        if (search != null && !search.trim().isEmpty()) {
+            return courseService.searchCourses(search);
+        }
         // Nếu là admin request, trả về tất cả khóa học (bao gồm PENDING)
         if (admin != null && admin) {
             return courseService.getAllCoursesForAdmin();

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { cartService } from "../../api/cart.service";
 
 const statusConfig = {
     PAID: {
@@ -35,8 +36,29 @@ export default function PaymentResult() {
         if (hasResult) {
             localStorage.removeItem("pendingCourseId");
             localStorage.removeItem("pendingCourseName");
+
+            // Clear cart if payment was successful and it was a cart payment
+            if (resolvedStatus === "PAID") {
+                const pendingCartCourseIds = localStorage.getItem("pendingCartCourseIds");
+                if (pendingCartCourseIds) {
+                    const userId = localStorage.getItem("id");
+                    if (userId) {
+                        // Clear cart after successful payment
+                        cartService.clearCart(userId).then(() => {
+                            // Update cart count in navbar
+                            window.dispatchEvent(new Event('cartUpdated'));
+                        });
+                    }
+                    localStorage.removeItem("pendingCartItems");
+                    localStorage.removeItem("pendingCartCourseIds");
+                }
+            } else {
+                // Remove pending cart data if payment failed
+                localStorage.removeItem("pendingCartItems");
+                localStorage.removeItem("pendingCartCourseIds");
+            }
         }
-    }, [hasResult]);
+    }, [hasResult, resolvedStatus]);
 
     const handleBackToCourse = () => {
         if (pendingCourseId) {

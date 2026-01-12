@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Navbar from "../../Components/common/Navbar";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { message } from "antd";
 import { courseService } from "../../api/course.service";
 import { learningService } from "../../api/learning.service";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faClock, faPlayCircle, faQuestionCircle, faStar } from "@fortawesome/free-solid-svg-icons";
+import { faClock, faPlayCircle, faQuestionCircle, faStar, faSearch } from "@fortawesome/free-solid-svg-icons";
 
 function Courses() {
     const [courses, setCourses] = useState([]);
@@ -13,18 +13,40 @@ function Courses() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("name");
-    const [filterBy, setFilterBy] = useState("all");
     const [displayCount, setDisplayCount] = useState(6);
 
     const userId = localStorage.getItem("id");
-    const authToken = localStorage.getItem("token");
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Get search parameter from URL
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const searchParam = params.get("search");
+        if (searchParam) {
+            setSearchTerm(searchParam);
+        }
+    }, [location.search]);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const coursesRes = await courseService.getAllCourses();
-                if (coursesRes.success) setCourses(coursesRes.data);
+                setLoading(true);
+                // Get search parameter from URL
+                const params = new URLSearchParams(location.search);
+                const searchParam = params.get("search");
+
+                // If there's a search parameter, use search API
+                if (searchParam && searchParam.trim()) {
+                    const coursesRes = await courseService.getAllCourses({ search: searchParam.trim() });
+                    if (coursesRes.success) {
+                        setCourses(coursesRes.data);
+                    }
+                } else {
+                    // Otherwise, get all courses
+                    const coursesRes = await courseService.getAllCourses();
+                    if (coursesRes.success) setCourses(coursesRes.data);
+                }
 
                 if (userId) {
                     const enrollmentsRes = await learningService.getEnrollments(userId);
@@ -40,17 +62,26 @@ function Courses() {
         };
 
         fetchData();
-    }, [userId]);
+    }, [userId, location.search]);
 
     const filteredAndSortedCourses = useMemo(() => {
-        let filtered = courses.filter(course => {
-            const matchesSearch = course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                course.instructor.toLowerCase().includes(searchTerm.toLowerCase());
+        // If search came from URL (API search), don't filter again
+        const params = new URLSearchParams(location.search);
+        const searchParam = params.get("search");
+        const isApiSearch = searchParam && searchParam.trim();
 
-            if (filterBy === "enrolled") return matchesSearch && enrolled.includes(course.course_id);
-            if (filterBy === "available") return matchesSearch && !enrolled.includes(course.course_id);
-            return matchesSearch;
-        });
+        let filtered = courses;
+
+        // Only apply frontend filtering if not using API search
+        if (!isApiSearch && searchTerm) {
+            filtered = courses.filter(course => {
+                const matchesSearch = course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    course.instructor.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchesSearch;
+            });
+        }
+
+        // No enrollment filter - all courses are shown
 
         filtered.sort((a, b) => {
             switch (sortBy) {
@@ -59,9 +90,15 @@ function Courses() {
                 case "instructor":
                     return a.instructor.localeCompare(b.instructor);
                 case "price": {
-                    const priceA = parseFloat(a.price.replace(/[^0-9.]/g, '')) || 0;
-                    const priceB = parseFloat(b.price.replace(/[^0-9.]/g, '')) || 0;
-                    return priceA - priceB;
+                    // Use helper function if available, otherwise inline logic
+                    const getPrice = (price) => {
+                        if (typeof price === 'number') return price;
+                        if (typeof price === 'string') {
+                            return parseFloat(price.replace(/[^0-9.]/g, '')) || 0;
+                        }
+                        return 0;
+                    };
+                    return getPrice(a.price) - getPrice(b.price);
                 }
                 default:
                     return 0;
@@ -69,22 +106,23 @@ function Courses() {
         });
 
         return filtered;
-    }, [courses, searchTerm, sortBy, filterBy, enrolled]);
+    }, [courses, searchTerm, sortBy, location.search]);
 
     const displayedCourses = filteredAndSortedCourses.slice(0, displayCount);
 
-    const enrollCourse = async (courseId) => {
-        if (!authToken) {
-            message.error("Bạn cần đăng nhập để tiếp tục");
-            setTimeout(() => navigate("/login"), 2000);
-            return;
+    // Helper function to get price as number
+    const getPriceAsNumber = (price) => {
+        if (typeof price === 'number') return price;
+        if (typeof price === 'string') {
+            return parseFloat(price.replace(/[^0-9.]/g, '')) || 0;
         }
+        return 0;
+    };
 
-        const res = await learningService.enrollCourse(userId, courseId);
-        if (res.success && res.data === "Enrolled successfully") {
-            message.success("Đăng ký khóa học thành công");
-            setTimeout(() => navigate(`/course/${courseId}`), 2000);
-        }
+    // Helper function to format price for display
+    const formatPrice = (price) => {
+        const numPrice = getPriceAsNumber(price);
+        return numPrice > 0 ? `${numPrice.toLocaleString('vi-VN')}đ` : 'Miễn phí';
     };
 
     const loadMore = () => {
@@ -119,69 +157,138 @@ function Courses() {
         <div className="min-h-screen bg-gray-50">
             <Navbar page="courses" />
 
-            <div className="max-w-7xl mx-auto px-4 py-8">
-                <div className="mb-8">
-
-                    <div className="flex flex-col md:flex-row gap-4 mb-6">
-                        <div className="flex-1">
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm khóa học hoặc giảng viên..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                            />
-                        </div>
-
-                        <div className="flex gap-3">
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                className="px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-                            >
-                                <option value="name">Sắp xếp theo tên</option>
-                                <option value="instructor">Sắp xếp theo giảng viên</option>
-                                <option value="price">Sắp xếp theo giá</option>
-                            </select>
-
-                            <select
-                                value={filterBy}
-                                onChange={(e) => setFilterBy(e.target.value)}
-                                className="px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-                            >
-                                <option value="all">Tất cả khóa học</option>
-                                <option value="available">Có thể đăng ký</option>
-                                <option value="enrolled">Đã ghi danh</option>
-                            </select>
-                        </div>
+            {/* Hero Search Section */}
+            <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 text-white py-16 md:py-24">
+                <div className="max-w-7xl mx-auto px-4">
+                    <div className="text-center mb-8">
+                        <h1 className="text-4xl md:text-5xl font-bold mb-4">
+                            {new URLSearchParams(location.search).get("search")
+                                ? `Kết quả tìm kiếm`
+                                : "Khám phá khóa học"}
+                        </h1>
+                        <p className="text-lg md:text-xl text-indigo-100">
+                            {new URLSearchParams(location.search).get("search")
+                                ? `Tìm thấy ${filteredAndSortedCourses.length} khóa học cho "${new URLSearchParams(location.search).get("search")}"`
+                                : "Tìm kiếm và học tập với hàng ngàn khóa học chất lượng"}
+                        </p>
                     </div>
 
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                        <span>Hiển thị {displayedCourses.length} / {filteredAndSortedCourses.length} khóa học</span>
-                        {searchTerm && (
+                    {/* Beautiful Search Bar */}
+                    <div className="max-w-3xl mx-auto">
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                if (searchTerm.trim()) {
+                                    navigate(`/courses?search=${encodeURIComponent(searchTerm.trim())}`);
+                                }
+                            }}
+                            className="relative"
+                        >
+                            <div className="relative bg-white rounded-2xl shadow-2xl overflow-hidden">
+                                <input
+                                    type="text"
+                                    placeholder="Tìm kiếm khóa học, giảng viên, chủ đề..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full px-6 py-5 pr-20 text-gray-900 text-lg focus:outline-none placeholder-gray-400"
+                                />
+                                <button
+                                    type="submit"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                >
+                                    <FontAwesomeIcon icon={faSearch} className="mr-2" />
+                                    Tìm kiếm
+                                </button>
+                            </div>
+                        </form>
+
+                        {/* Quick Filters */}
+                        <div className="flex flex-wrap gap-3 mt-6 justify-center">
                             <button
-                                onClick={() => setSearchTerm("")}
-                                className="text-blue-600 hover:text-blue-800"
+                                onClick={() => {
+                                    setSortBy("name");
+                                    setSearchTerm("");
+                                    navigate("/courses");
+                                }}
+                                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === "name" && !searchTerm
+                                    ? "bg-white text-indigo-600 shadow-lg"
+                                    : "bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm"
+                                    }`}
                             >
-                                Xóa tìm kiếm
+                                Tất cả
                             </button>
-                        )}
+                            <button
+                                onClick={() => setSortBy("price")}
+                                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === "price"
+                                    ? "bg-white text-indigo-600 shadow-lg"
+                                    : "bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm"
+                                    }`}
+                            >
+                                Giá thấp đến cao
+                            </button>
+                            <button
+                                onClick={() => setSortBy("instructor")}
+                                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === "instructor"
+                                    ? "bg-white text-indigo-600 shadow-lg"
+                                    : "bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm"
+                                    }`}
+                            >
+                                Theo giảng viên
+                            </button>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4 py-8">
+                {/* Results Header */}
+                {searchTerm && (
+                    <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-3">
+                            <span className="text-gray-600">
+                                Hiển thị <span className="font-bold text-gray-900">{displayedCourses.length}</span> / <span className="font-bold text-gray-900">{filteredAndSortedCourses.length}</span> khóa học
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setSearchTerm("");
+                                navigate("/courses");
+                            }}
+                            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors font-medium"
+                        >
+                            ✕ Xóa tìm kiếm
+                        </button>
+                    </div>
+                )}
 
                 {loading ? (
                     <div className="flex justify-center items-center h-64">
                         <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                     </div>
                 ) : filteredAndSortedCourses.length === 0 ? (
-                    <div className="flex flex-col justify-center items-center h-64 text-center">
-                        <div className="text-gray-400 mb-4">
-                            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                            </svg>
+                    <div className="flex flex-col justify-center items-center py-20 text-center">
+                        <div className="mb-6">
+                            <div className="w-32 h-32 mx-auto bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center">
+                                <FontAwesomeIcon icon={faSearch} className="text-6xl text-indigo-400" />
+                            </div>
                         </div>
-                        <p className="text-gray-500 text-lg mb-2">Không tìm thấy khóa học</p>
-                        <p className="text-gray-400 text-sm">Hãy thử thay đổi từ khóa hoặc bộ lọc</p>
+                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Không tìm thấy khóa học</h3>
+                        <p className="text-gray-500 text-lg mb-6 max-w-md">
+                            {searchTerm
+                                ? `Không có kết quả nào cho "${searchTerm}". Hãy thử với từ khóa khác.`
+                                : "Hiện tại chưa có khóa học nào. Vui lòng quay lại sau."}
+                        </p>
+                        {searchTerm && (
+                            <button
+                                onClick={() => {
+                                    setSearchTerm("");
+                                    navigate("/courses");
+                                }}
+                                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
+                            >
+                                Xem tất cả khóa học
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <>
@@ -199,7 +306,7 @@ function Courses() {
                                         />
                                         <div className="absolute top-3 right-3">
                                             <span className="bg-white/90 backdrop-blur-sm text-gray-700 px-2 py-1 rounded-full text-xs font-medium">
-                                                {course.price}
+                                                {formatPrice(course.price)}
                                             </span>
                                         </div>
                                     </div>
@@ -278,17 +385,17 @@ function Courses() {
 
                                         {enrolled.includes(course.course_id) ? (
                                             <button
-                                                onClick={() => navigate("/learnings")}
+                                                onClick={() => navigate(`/courses/${course.course_id}`)}
                                                 className="w-full py-3 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 font-semibold hover:from-green-100 hover:to-emerald-100 transition-all duration-200 border border-green-200 shadow-md hover:shadow-lg"
                                             >
-                                                ✓ Đã ghi danh
+                                                ✓ Đã mua - Học ngay
                                             </button>
                                         ) : (
                                             <button
-                                                onClick={() => enrollCourse(course.course_id)}
+                                                onClick={() => navigate(`/courses/${course.course_id}`)}
                                                 className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                                             >
-                                                Đăng ký ngay
+                                                {getPriceAsNumber(course.price) > 0 ? "Xem chi tiết" : "Học miễn phí"}
                                             </button>
                                         )}
                                     </div>
