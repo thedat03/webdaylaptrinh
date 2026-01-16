@@ -11,8 +11,9 @@ import { paymentService } from "../../api/payment.service";
 import { cartService } from "../../api/cart.service";
 import { authService } from "../../api/auth.service";
 import { examService } from "../../api/exam.service";
+import { codeExerciseService } from "../../api/codeExercise.service";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlay, faStar, faStarHalfAlt, faClipboardList } from "@fortawesome/free-solid-svg-icons";
+import { faPlay, faStar, faStarHalfAlt, faClipboardList, faCode } from "@fortawesome/free-solid-svg-icons";
 
 function CourseDetail() {
     const { id } = useParams();
@@ -39,6 +40,8 @@ function CourseDetail() {
     const [hasPublishedExam, setHasPublishedExam] = useState(false);
     const [checkingExam, setCheckingExam] = useState(false);
     const [addingToCart, setAddingToCart] = useState(false);
+    const [codeExercises, setCodeExercises] = useState([]);
+    const [loadingCodeExercises, setLoadingCodeExercises] = useState(false);
 
     const totalLessons = modules.reduce((sum, m) => sum + ((lessonsByModule[m.module_id] || []).length), 0);
     const totalDurationMinutes = useMemo(() => {
@@ -188,6 +191,24 @@ function CourseDetail() {
             }
         };
         checkPublishedExam();
+    }, [id]);
+
+    useEffect(() => {
+        const loadCodeExercises = async () => {
+            if (!id) return;
+            setLoadingCodeExercises(true);
+            try {
+                const result = await codeExerciseService.getCodeExercisesByCourseId(id);
+                if (result.success) {
+                    setCodeExercises(result.data || []);
+                }
+            } catch (error) {
+                console.error("Error loading code exercises:", error);
+            } finally {
+                setLoadingCodeExercises(false);
+            }
+        };
+        loadCodeExercises();
     }, [id]);
 
     const renderStars = (value = 0, size = "text-xl") => {
@@ -458,6 +479,38 @@ function CourseDetail() {
                             );
                         })}
                     </div>
+
+                    {/* Code Exercises Button - chỉ hiển thị khi đã đăng ký và có bài tập code */}
+                    {isEnrolled && codeExercises.length > 0 && (
+                        <div className="mt-8">
+                            <button
+                                onClick={() => {
+                                    // Navigate to first exercise or show modal
+                                    if (codeExercises.length > 0) {
+                                        navigate(`/code-exercise/${codeExercises[0].exercise_id}?courseId=${id}`);
+                                    }
+                                }}
+                                className="w-full py-4 rounded-2xl border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 transition-all shadow-sm hover:shadow-md group"
+                            >
+                                <div className="flex items-center justify-between px-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                                <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-lg font-bold text-gray-900 group-hover:text-purple-600 transition">Bài tập code</p>
+                                            <p className="text-sm text-gray-500 mt-0.5">{codeExercises.length} bài tập thực hành lập trình</p>
+                                        </div>
+                                    </div>
+                                    <svg className="w-6 h-6 text-purple-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </div>
+                            </button>
+                        </div>
+                    )}
 
                     {/* Exam Section - chỉ hiển thị khi đã đăng ký và có đề thi */}
                     {isEnrolled && hasPublishedExam && (

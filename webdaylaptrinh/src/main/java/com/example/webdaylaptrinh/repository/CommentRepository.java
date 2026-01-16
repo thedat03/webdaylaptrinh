@@ -68,5 +68,13 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
     // Lấy featured comments (comments có rating từ tất cả courses, đã duyệt, không phải reply)
     @Query("SELECT c FROM Comment c WHERE c.course IS NOT NULL AND c.rating IS NOT NULL AND c.rating > 0 AND c.isApproved = true AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
     List<Comment> findFeaturedComments();
+    
+    // Lấy tất cả comment đã duyệt của một exercise (chỉ comment gốc)
+    @Query("SELECT c FROM Comment c WHERE c.exercise.exercise_id = :exerciseId AND c.isApproved = true AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
+    List<Comment> findByExercise_ExerciseIdAndIsApprovedTrueAndParentCommentIsNullOrderByCreatedAtDesc(@Param("exerciseId") UUID exerciseId);
+    
+    // Lấy tất cả comment của một exercise (cho admin)
+    @Query("SELECT c FROM Comment c WHERE c.exercise.exercise_id = :exerciseId AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
+    List<Comment> findByExercise_ExerciseIdAndParentCommentIsNullOrderByCreatedAtDesc(@Param("exerciseId") UUID exerciseId);
 }
 

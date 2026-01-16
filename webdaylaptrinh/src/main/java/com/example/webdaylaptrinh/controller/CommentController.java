@@ -50,6 +50,19 @@ public class CommentController {
         }
     }
 
+    // Lấy tất cả comment đã duyệt của một exercise
+    @GetMapping("/exercise/{exerciseId}")
+    public ResponseEntity<List<Comment>> getCommentsByExercise(@PathVariable UUID exerciseId) {
+        try {
+            List<Comment> comments = commentService.getApprovedCommentsByExercise(exerciseId);
+            // Sắp xếp lại theo thời gian tạo (mới nhất trước)
+            comments.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+            return ResponseEntity.ok(comments);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     // Lấy tất cả comment (bao gồm chưa duyệt) - cho admin
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/lesson/{lessonId}/all")
@@ -122,6 +135,20 @@ public class CommentController {
                 }
             }
             
+            // Parse exerciseId
+            UUID exerciseId = null;
+            if (request.get("exerciseId") != null) {
+                String exerciseIdStr = request.get("exerciseId").toString().trim();
+                if (!exerciseIdStr.isEmpty()) {
+                    try {
+                        exerciseId = UUID.fromString(exerciseIdStr);
+                    } catch (IllegalArgumentException e) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(Map.of("error", "Invalid exerciseId format: " + exerciseIdStr));
+                    }
+                }
+            }
+            
             // Validate content
             if (request.get("content") == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -168,7 +195,7 @@ public class CommentController {
                 }
             }
 
-            Comment comment = commentService.createComment(lessonId, courseId, userId, content, rating, parentCommentId);
+            Comment comment = commentService.createComment(lessonId, courseId, userId, content, rating, parentCommentId, exerciseId);
             return ResponseEntity.status(HttpStatus.CREATED).body(comment);
         } catch (RuntimeException e) {
             // Log error for debugging

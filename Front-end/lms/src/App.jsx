@@ -20,6 +20,7 @@ import Certificate from './pages/assessment/certificate';
 import Forum from './pages/course/forum';
 import AdminDashboard from './pages/dashBoard/AdminDashboard';
 import LessonViewer from './pages/learning/LessonViewer';
+import CodeExerciseViewer from './pages/learning/CodeExerciseViewer';
 import PaymentResult from './pages/payment/PaymentResult';
 import Chat from './pages/chat/Chat';
 import Notifications from './pages/notifications/Notifications';
@@ -51,6 +52,7 @@ function App() {
           <Route path='/profile' element={<Profile />} />
           <Route path='/Learnings' element={<Learnings />} />
           <Route path='/lesson/:lessonId' element={<LessonViewer />} />
+          <Route path='/code-exercise/:exerciseId' element={<CodeExerciseViewer />} />
           <Route path='/payment-result' element={<PaymentResult />} />
           <Route path='/Dcourses' element={<DCourses />} />
           <Route path='/Performance' element={<Performance />} />

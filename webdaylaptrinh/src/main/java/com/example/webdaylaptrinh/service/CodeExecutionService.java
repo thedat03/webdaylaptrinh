@@ -1,8 +1,10 @@
 package com.example.webdaylaptrinh.service;
 
 import com.example.webdaylaptrinh.dto.*;
+import com.example.webdaylaptrinh.entity.CodeExercise;
 import com.example.webdaylaptrinh.entity.Lesson;
 import com.example.webdaylaptrinh.enums.LessonType;
+import com.example.webdaylaptrinh.repository.CodeExerciseRepository;
 import com.example.webdaylaptrinh.repository.LessonRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,6 +28,7 @@ import java.util.UUID;
 public class CodeExecutionService {
 
     private final LessonRepository lessonRepository;
+    private final CodeExerciseRepository codeExerciseRepository;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -88,6 +91,56 @@ public class CodeExecutionService {
     }
 
     /**
+     * Chạy code cho bài tập code (CodeExercise).
+     */
+    public CodeRunResponse executeCodeExercise(UUID exerciseId, CodeRunRequest request) {
+        CodeRunResponse errorResponse = new CodeRunResponse();
+        errorResponse.setOverallPassed(false);
+        errorResponse.setResults(Collections.emptyList());
+
+        CodeExercise exercise = codeExerciseRepository.findById(exerciseId).orElse(null);
+        if (exercise == null) {
+            errorResponse.setError("Không tìm thấy bài tập code");
+            return errorResponse;
+        }
+
+        if (!StringUtils.hasText(request.getSourceCode())) {
+            errorResponse.setError("Vui lòng cung cấp mã nguồn");
+            return errorResponse;
+        }
+
+        if (exercise.getCodeLanguageId() == null) {
+            errorResponse.setError("Bài tập chưa được cấu hình ngôn ngữ Judge0. Vui lòng liên hệ admin để cấu hình.");
+            return errorResponse;
+        }
+
+        List<CodeTestCase> testCases = loadTestCasesFromExercise(exercise);
+        if (CollectionUtils.isEmpty(testCases)) {
+            errorResponse.setError("Bài tập chưa có test case để kiểm tra. Vui lòng liên hệ admin để cấu hình.");
+            return errorResponse;
+        }
+
+        List<TestCaseResult> results = new ArrayList<>();
+        for (int i = 0; i < testCases.size(); i++) {
+            CodeTestCase testCase = testCases.get(i);
+            TestCaseResult result = executeSingleTest(
+                    testCase,
+                    request.getSourceCode(),
+                    exercise.getCodeLanguageId(),
+                    i
+            );
+            results.add(result);
+        }
+
+        boolean overallPassed = results.stream().allMatch(TestCaseResult::isPassed);
+        CodeRunResponse response = new CodeRunResponse();
+        response.setOverallPassed(overallPassed);
+        response.setResults(results);
+        response.setMessage(overallPassed ? "Tất cả test case đã vượt qua" : "Một số test case chưa đạt");
+        return response;
+    }
+
+    /**
      * Chạy code ad-hoc cho danh sách test case (dùng cho bài thi code).
      */
     public List<TestCaseResult> executeAdhocCode(Integer languageId, String sourceCode, List<CodeTestCase> testCases) {
@@ -112,6 +165,21 @@ public class CodeExecutionService {
         try {
             return objectMapper.readValue(
                     lesson.getCodeTestCases(),
+                    new TypeReference<List<CodeTestCase>>() {
+                    }
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("Không thể đọc test case: " + ex.getMessage(), ex);
+        }
+    }
+
+    private List<CodeTestCase> loadTestCasesFromExercise(CodeExercise exercise) {
+        if (!StringUtils.hasText(exercise.getCodeTestCases())) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(
+                    exercise.getCodeTestCases(),
                     new TypeReference<List<CodeTestCase>>() {
                     }
             );

@@ -1,9 +1,11 @@
 package com.example.webdaylaptrinh.service;
 
 import com.example.webdaylaptrinh.entity.Comment;
+import com.example.webdaylaptrinh.entity.CodeExercise;
 import com.example.webdaylaptrinh.entity.Course;
 import com.example.webdaylaptrinh.entity.Lesson;
 import com.example.webdaylaptrinh.entity.User;
+import com.example.webdaylaptrinh.repository.CodeExerciseRepository;
 import com.example.webdaylaptrinh.repository.CommentRepository;
 import com.example.webdaylaptrinh.repository.CourseRepository;
 import com.example.webdaylaptrinh.repository.LessonRepository;
@@ -22,6 +24,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final LessonRepository lessonRepository;
     private final CourseRepository courseRepository;
+    private final CodeExerciseRepository codeExerciseRepository;
     private final UserRepository userRepository;
 
     // Lấy tất cả comment đã duyệt của một lesson (chỉ comment gốc)
@@ -44,19 +47,30 @@ public class CommentService {
         return commentRepository.findByCourse_CourseIdAndParentCommentIsNullOrderByCreatedAtDesc(courseId);
     }
 
+    // Lấy tất cả comment đã duyệt của một exercise (chỉ comment gốc)
+    public List<Comment> getApprovedCommentsByExercise(UUID exerciseId) {
+        return commentRepository.findByExercise_ExerciseIdAndIsApprovedTrueAndParentCommentIsNullOrderByCreatedAtDesc(exerciseId);
+    }
+
+    // Lấy tất cả comment của một exercise (cho admin)
+    public List<Comment> getAllCommentsByExercise(UUID exerciseId) {
+        return commentRepository.findByExercise_ExerciseIdAndParentCommentIsNullOrderByCreatedAtDesc(exerciseId);
+    }
+
     // Lấy reply của một comment
     public List<Comment> getRepliesByCommentId(UUID commentId) {
         return commentRepository.findByParentComment_CommentIdOrderByCreatedAtAsc(commentId);
     }
 
-    // Tạo comment mới (cho lesson hoặc course)
+    // Tạo comment mới (cho lesson, course hoặc exercise)
     @Transactional
-    public Comment createComment(UUID lessonId, UUID courseId, UUID userId, String content, Integer rating, UUID parentCommentId) {
-        if (lessonId == null && courseId == null) {
-            throw new RuntimeException("Either lessonId or courseId must be provided");
+    public Comment createComment(UUID lessonId, UUID courseId, UUID userId, String content, Integer rating, UUID parentCommentId, UUID exerciseId) {
+        int providedCount = (lessonId != null ? 1 : 0) + (courseId != null ? 1 : 0) + (exerciseId != null ? 1 : 0);
+        if (providedCount == 0) {
+            throw new RuntimeException("Either lessonId, courseId, or exerciseId must be provided");
         }
-        if (lessonId != null && courseId != null) {
-            throw new RuntimeException("Cannot specify both lessonId and courseId");
+        if (providedCount > 1) {
+            throw new RuntimeException("Cannot specify more than one of lessonId, courseId, or exerciseId");
         }
         
         User user = userRepository.findById(userId)
@@ -72,12 +86,20 @@ public class CommentService {
             Lesson lesson = lessonRepository.findById(lessonId)
                     .orElseThrow(() -> new RuntimeException("Lesson not found"));
             commentBuilder.lesson(lesson);
-            commentBuilder.course(null); // Đảm bảo course là null khi có lesson
+            commentBuilder.course(null);
+            commentBuilder.exercise(null);
+        } else if (exerciseId != null) {
+            CodeExercise exercise = codeExerciseRepository.findById(exerciseId)
+                    .orElseThrow(() -> new RuntimeException("Exercise not found"));
+            commentBuilder.exercise(exercise);
+            commentBuilder.lesson(null);
+            commentBuilder.course(null);
         } else {
             Course course = courseRepository.findById(courseId)
                     .orElseThrow(() -> new RuntimeException("Course not found"));
             commentBuilder.course(course);
-            commentBuilder.lesson(null); // Đảm bảo lesson là null khi có course
+            commentBuilder.lesson(null);
+            commentBuilder.exercise(null);
         }
 
         Comment comment = commentBuilder.build();

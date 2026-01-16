@@ -13,7 +13,7 @@ import { commentService } from "../../api/comment.service";
 import { authService } from "../../api/auth.service";
 import { message } from "antd";
 
-function CommentSection({ lessonId, courseId, enableRating = true }) {
+function CommentSection({ lessonId, courseId, exerciseId, enableRating = true }) {
     const [comments, setComments] = useState([]);
     const [loading, setLoading] = useState(false);
     const [newComment, setNewComment] = useState("");
@@ -34,14 +34,14 @@ function CommentSection({ lessonId, courseId, enableRating = true }) {
     const canComment = authService.isUserAuthenticated() || isInstructor || isTeachingAssistant;
 
     useEffect(() => {
-        if (lessonId || courseId) {
+        if (lessonId || courseId || exerciseId) {
             loadComments();
         }
-    }, [lessonId, courseId]);
+    }, [lessonId, courseId, exerciseId]);
 
     useEffect(() => {
         setVisibleCount(5);
-    }, [comments.length, lessonId, courseId]);
+    }, [comments.length, lessonId, courseId, exerciseId]);
 
     useEffect(() => {
         if (commentInputRef.current) {
@@ -53,13 +53,16 @@ function CommentSection({ lessonId, courseId, enableRating = true }) {
     const loadComments = async () => {
         setLoading(true);
         try {
-            // Ensure lessonId and courseId are strings (UUID format)
+            // Ensure IDs are strings (UUID format)
             const lessonIdStr = lessonId ? String(lessonId) : null;
             const courseIdStr = courseId ? String(courseId) : null;
+            const exerciseIdStr = exerciseId ? String(exerciseId) : null;
 
             let result;
             if (lessonIdStr) {
                 result = await commentService.getCommentsByLesson(lessonIdStr);
+            } else if (exerciseIdStr) {
+                result = await commentService.getCommentsByExercise(exerciseIdStr);
             } else if (courseIdStr) {
                 result = await commentService.getCommentsByCourse(courseIdStr);
             } else {
@@ -106,12 +109,13 @@ function CommentSection({ lessonId, courseId, enableRating = true }) {
             return;
         }
 
-        // Ensure lessonId and courseId are strings (UUID format)
+        // Ensure IDs are strings (UUID format)
         const lessonIdStr = lessonId ? String(lessonId) : null;
         const courseIdStr = courseId ? String(courseId) : null;
+        const exerciseIdStr = exerciseId ? String(exerciseId) : null;
 
-        if (!lessonIdStr && !courseIdStr) {
-            message.error("Không thể xác định bài học hoặc khóa học");
+        if (!lessonIdStr && !courseIdStr && !exerciseIdStr) {
+            message.error("Không thể xác định bài học, khóa học hoặc bài tập");
             return;
         }
 
@@ -120,7 +124,9 @@ function CommentSection({ lessonId, courseId, enableRating = true }) {
                 lessonIdStr,
                 courseIdStr,
                 newComment,
-                enableRating && newRating > 0 ? newRating : null
+                enableRating && newRating > 0 ? newRating : null,
+                null,
+                exerciseIdStr
             );
             if (result.success) {
                 message.success("Bình luận đã được đăng");
@@ -176,9 +182,10 @@ function CommentSection({ lessonId, courseId, enableRating = true }) {
             return;
         }
 
-        // Ensure lessonId and courseId are strings (UUID format)
+        // Ensure IDs are strings (UUID format)
         const lessonIdStr = lessonId ? String(lessonId) : null;
         const courseIdStr = courseId ? String(courseId) : null;
+        const exerciseIdStr = exerciseId ? String(exerciseId) : null;
 
         try {
             const result = await commentService.createComment(
@@ -186,7 +193,8 @@ function CommentSection({ lessonId, courseId, enableRating = true }) {
                 courseIdStr,
                 replyContent,
                 null,
-                parentCommentId ? String(parentCommentId) : null
+                parentCommentId ? String(parentCommentId) : null,
+                exerciseIdStr
             );
             if (result.success) {
                 message.success("Phản hồi đã được đăng");
@@ -473,13 +481,15 @@ function CommentSection({ lessonId, courseId, enableRating = true }) {
         );
     };
 
-    if (!lessonId && !courseId) {
+    if (!lessonId && !courseId && !exerciseId) {
         return null;
     }
 
-    const title = lessonId ? "Thảo luận bài học" : "Bình luận và Đánh giá";
+    const title = lessonId ? "Thảo luận bài học" : exerciseId ? "Thảo luận bài tập" : "Bình luận và Đánh giá";
     const subtitle = lessonId
         ? "Trao đổi thắc mắc, chia sẻ mẹo học và hỗ trợ nhau ngay dưới bài giảng này."
+        : exerciseId
+        ? "Trao đổi thắc mắc, chia sẻ mẹo học và hỗ trợ nhau ngay dưới bài tập này."
         : "Chia sẻ cảm nhận và đánh giá tổng thể về khóa học.";
 
     const visibleComments = comments.slice(0, visibleCount);
@@ -511,7 +521,7 @@ function CommentSection({ lessonId, courseId, enableRating = true }) {
                             ref={commentInputRef}
                             value={newComment}
                             onChange={(e) => setNewComment(e.target.value)}
-                            placeholder={lessonId ? "Đặt câu hỏi hoặc chia sẻ kinh nghiệm học tập của bạn..." : "Viết bình luận của bạn..."}
+                            placeholder={lessonId || exerciseId ? "Đặt câu hỏi hoặc chia sẻ kinh nghiệm học tập của bạn..." : "Viết bình luận của bạn..."}
                             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
                             rows="1"
                             required

@@ -22,6 +22,17 @@ async function getCommentsByCourse(courseId) {
     }
 }
 
+// Lấy tất cả comment đã duyệt của một code exercise
+async function getCommentsByExercise(exerciseId) {
+    try {
+        const { data } = await api.get(`/api/comments/exercise/${exerciseId}`);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error fetching exercise comments:", error);
+        return { success: false, error: "Could not fetch comments" };
+    }
+}
+
 // Lấy tất cả comment (bao gồm chưa duyệt) - cho admin
 async function getAllCommentsByLesson(lessonId) {
     try {
@@ -44,8 +55,8 @@ async function getRepliesByComment(commentId) {
     }
 }
 
-// Tạo comment mới (cho lesson hoặc course)
-async function createComment(lessonId, courseId, content, rating = null, parentCommentId = null) {
+// Tạo comment mới (cho lesson, course hoặc exercise)
+async function createComment(lessonId, courseId, content, rating = null, parentCommentId = null, exerciseId = null) {
     try {
         const requestBody = {
             content: content?.trim() || "",
@@ -61,9 +72,11 @@ async function createComment(lessonId, courseId, content, rating = null, parentC
             requestBody.parentCommentId = parentCommentId;
         }
 
-        // Add lessonId or courseId (but not both)
+        // Add lessonId, exerciseId, or courseId (priority: lesson > exercise > course)
         if (lessonId) {
             requestBody.lessonId = lessonId;
+        } else if (exerciseId) {
+            requestBody.exerciseId = exerciseId;
         } else if (courseId) {
             requestBody.courseId = courseId;
         }
@@ -203,6 +216,7 @@ async function getFeaturedComments(limit = 6) {
 export const commentService = {
     getCommentsByLesson,
     getCommentsByCourse,
+    getCommentsByExercise,
     getAllCommentsByLesson,
     getRepliesByComment,
     createComment,

@@ -19,6 +19,11 @@ public class CodeExecutionController {
     public CodeRunResponse runLessonCode(@PathVariable UUID lessonId, @RequestBody CodeRunRequest request) {
         return codeExecutionService.executeLessonCode(lessonId, request);
     }
+
+    @PostMapping("/exercises/{exerciseId}/run")
+    public CodeRunResponse runCodeExercise(@PathVariable UUID exerciseId, @RequestBody CodeRunRequest request) {
+        return codeExecutionService.executeCodeExercise(exerciseId, request);
+    }
 }
 
 

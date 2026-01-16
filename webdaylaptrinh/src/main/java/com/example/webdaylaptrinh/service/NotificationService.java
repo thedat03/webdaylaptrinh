@@ -212,5 +212,86 @@ public class NotificationService {
             log.error("Error creating course update notifications", e);
         }
     }
+
+    /**
+     * Thông báo cho tất cả học viên đã mua khóa học khi có bài tập code mới
+     */
+    @Transactional
+    public void notifyNewCodeExercise(Course course, String exerciseTitle) {
+        try {
+            List<Learning> enrollments = learningRepository.findByCourse_CourseId(course.getCourse_id());
+            
+            for (Learning learning : enrollments) {
+                createNotification(
+                        learning.getUser().getId(),
+                        "Bài tập code mới đã được thêm vào khóa học",
+                        String.format("Giáo viên đã thêm bài tập code \"%s\" vào khóa học \"%s\". Hãy vào làm bài tập ngay nhé!", 
+                                exerciseTitle, course.getCourse_name()),
+                        "CODE_EXERCISE_NEW",
+                        course.getCourse_id(),
+                        "COURSE"
+                );
+            }
+            
+            log.info("Created new code exercise notifications for course: {} with {} students", 
+                    course.getCourse_name(), enrollments.size());
+        } catch (Exception e) {
+            log.error("Error creating new code exercise notifications", e);
+        }
+    }
+
+    /**
+     * Thông báo cho tất cả học viên đã mua khóa học khi có cập nhật bài tập code
+     */
+    @Transactional
+    public void notifyCodeExerciseUpdate(Course course, String exerciseTitle) {
+        try {
+            List<Learning> enrollments = learningRepository.findByCourse_CourseId(course.getCourse_id());
+            
+            for (Learning learning : enrollments) {
+                createNotification(
+                        learning.getUser().getId(),
+                        "Bài tập code đã được cập nhật",
+                        String.format("Bài tập code \"%s\" trong khóa học \"%s\" đã được cập nhật. Hãy kiểm tra lại nhé!", 
+                                exerciseTitle, course.getCourse_name()),
+                        "CODE_EXERCISE_UPDATE",
+                        course.getCourse_id(),
+                        "COURSE"
+                );
+            }
+            
+            log.info("Created code exercise update notifications for course: {} with {} students", 
+                    course.getCourse_name(), enrollments.size());
+        } catch (Exception e) {
+            log.error("Error creating code exercise update notifications", e);
+        }
+    }
+
+    /**
+     * Thông báo cho tất cả học viên đã mua khóa học khi có bài tập code bị xóa
+     */
+    @Transactional
+    public void notifyCodeExerciseDelete(Course course, String exerciseTitle) {
+        try {
+            List<Learning> enrollments = learningRepository.findByCourse_CourseId(course.getCourse_id());
+            
+            for (Learning learning : enrollments) {
+                createNotification(
+                        learning.getUser().getId(),
+                        "Bài tập code đã bị xóa",
+                        String.format("Bài tập code \"%s\" trong khóa học \"%s\" đã bị xóa.", 
+                                exerciseTitle, course.getCourse_name()),
+                        "CODE_EXERCISE_DELETE",
+                        course.getCourse_id(),
+                        "COURSE"
+                );
+            }
+            
+            log.info("Created code exercise delete notifications for course: {} with {} students", 
+                    course.getCourse_name(), enrollments.size());
+        } catch (Exception e) {
+            log.error("Error creating code exercise delete notifications", e);
+        }
+    }
 }
 

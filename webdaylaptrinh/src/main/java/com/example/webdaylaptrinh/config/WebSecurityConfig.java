@@ -94,6 +94,12 @@ public class WebSecurityConfig {
                         // Code execution endpoints - require authentication
                         .requestMatchers("/api/code/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
 
+                        // Code exercises - instructors manage, students can view and run
+                        .requestMatchers(HttpMethod.GET, "/api/code-exercises/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.POST, "/api/code-exercises").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/code-exercises/**").hasRole("INSTRUCTOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/code-exercises/**").hasRole("INSTRUCTOR")
+
                         // Exams - giáo viên tạo/quản lý, học viên làm bài
                         .requestMatchers(HttpMethod.GET, "/api/courses/*/exams/published").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/courses/*/exams/owner").hasRole("INSTRUCTOR")

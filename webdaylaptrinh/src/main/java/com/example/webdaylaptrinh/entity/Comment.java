@@ -37,6 +37,11 @@ public class Comment {
     @JsonIgnore
     private Course course; // null nếu comment cho lesson
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exercise_id", nullable = true)
+    @JsonIgnore
+    private CodeExercise exercise; // null nếu comment cho lesson hoặc course
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

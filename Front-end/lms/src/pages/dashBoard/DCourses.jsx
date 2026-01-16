@@ -4,11 +4,13 @@ import { faEdit, faTrash, faPlus, faBookOpen, faClipboardList, faSitemap, faCirc
 import { message } from "antd";
 import { adminService } from "../../api/admin.service";
 import { courseService } from "../../api/course.service";
+import { codeExerciseService } from "../../api/codeExercise.service";
 import CourseModal from "./CourseModal";
 import DeleteModal from "./DeleteModal";
 import AddQuestion from "./AddQuestions";
 import ModuleModal from "./ModuleModal";
 import LessonModal from "./LessonModal";
+import CodeExerciseModal from "./CodeExerciseModal";
 
 function Courses() {
     const [courses, setCourses] = useState([]);
@@ -30,8 +32,11 @@ function Courses() {
     const [modulesByCourse, setModulesByCourse] = useState({}); // courseId -> modules array
     const [lessonsByModule, setLessonsByModule] = useState({}); // moduleId -> lessons array
     const [expandedModules, setExpandedModules] = useState({}); // moduleId -> boolean
+    const [codeExercisesByCourse, setCodeExercisesByCourse] = useState({}); // courseId -> exercises array
+    const [expandedCodeExercises, setExpandedCodeExercises] = useState({}); // courseId -> boolean
     const [moduleModal, setModuleModal] = useState({ isOpen: false, mode: "add", courseId: null, module: null });
     const [lessonModal, setLessonModal] = useState({ isOpen: false, mode: "add", module: null, lesson: null });
+    const [codeExerciseModal, setCodeExerciseModal] = useState({ isOpen: false, mode: "add", courseId: null, exercise: null });
     const [deleteModal2, setDeleteModal2] = useState({ isOpen: false, item: null, itemType: "", onDelete: null, title: "", description: "" });
 
     useEffect(() => {
@@ -124,9 +129,6 @@ function Courses() {
         fetchCourses();
     };
 
-    const addQuestions = (course_id) => {
-        setSelectedCourseId(course_id);
-    };
 
     // --------- Curriculum management ---------
     const toggleCurriculum = async (courseId) => {
@@ -188,6 +190,52 @@ function Courses() {
     };
     const openDeleteLesson = (lesson) => setDeleteModal2({ isOpen: true, item: lesson, itemType: "Bài học", title: "Xóa bài học", description: "Bạn có chắc muốn xóa bài học này:", onDelete: async (l) => await courseService.deleteLesson(l.lesson_id) });
 
+    // --------- Code Exercises management ---------
+    const toggleCodeExercises = async (courseId) => {
+        if (expandedCodeExercises[courseId]) {
+            setExpandedCodeExercises((prev) => ({ ...prev, [courseId]: false }));
+            return;
+        }
+        setExpandedCodeExercises((prev) => ({ ...prev, [courseId]: true }));
+        if (!codeExercisesByCourse[courseId]) {
+            await loadCodeExercises(courseId);
+        }
+    };
+
+    const loadCodeExercises = async (courseId) => {
+        const res = await codeExerciseService.getCodeExercisesByCourseId(courseId);
+        if (res.success) {
+            setCodeExercisesByCourse((prev) => ({ ...prev, [courseId]: res.data || [] }));
+        } else {
+            message.error(res.error || "Tải bài tập code thất bại");
+        }
+    };
+
+    const openAddCodeExercise = (courseId) => setCodeExerciseModal({ isOpen: true, mode: "add", courseId, exercise: null });
+    const openEditCodeExercise = (exercise) => setCodeExerciseModal({ isOpen: true, mode: "edit", courseId: exercise.course?.course_id || expandedCourseId, exercise });
+    const submitCodeExercise = async (payload) => {
+        if (codeExerciseModal.mode === "add") {
+            const res = await codeExerciseService.createCodeExercise(payload);
+            if (res.success) {
+                message.success("Đã thêm bài tập code");
+                setCodeExerciseModal({ ...codeExerciseModal, isOpen: false });
+                await loadCodeExercises(codeExerciseModal.courseId);
+            } else {
+                message.error(res.error || "Thêm bài tập code thất bại");
+            }
+        } else {
+            const res = await codeExerciseService.updateCodeExercise(codeExerciseModal.exercise.exercise_id, payload);
+            if (res.success) {
+                message.success("Đã cập nhật bài tập code");
+                setCodeExerciseModal({ ...codeExerciseModal, isOpen: false });
+                await loadCodeExercises(codeExerciseModal.courseId);
+            } else {
+                message.error(res.error || "Cập nhật bài tập code thất bại");
+            }
+        }
+    };
+    const openDeleteCodeExercise = (exercise) => setDeleteModal2({ isOpen: true, item: exercise, itemType: "Bài tập code", title: "Xóa bài tập code", description: "Bạn có chắc muốn xóa bài tập code này:", onDelete: async (e) => await codeExerciseService.deleteCodeExercise(e.exercise_id) });
+
     return (
         <div className="w-full max-w-full overflow-x-hidden">
             {selectedCourseId ? (
@@ -236,7 +284,7 @@ function Courses() {
                             <div className="grid gap-4">
                                 {Array.isArray(courses) && courses.map((course) => (
                                     <div key={course.course_id} className="group bg-white border border-gray-200 rounded-xl hover:shadow-lg hover:border-blue-200 transition-all duration-300 overflow-hidden" >
-                                        <div className="p-4 md:p-6 flex items-start justify-between gap-4 overflow-x-auto">
+                                        <div className="p-4 md:p-6 flex flex-col md:flex-row items-start justify-between gap-4">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-3 mb-3">
                                                     <h3 className="text-xl font-bold text-gray-900 truncate"> {course.course_name} </h3>
@@ -265,15 +313,21 @@ function Courses() {
                                                 </div>
                                             </div>
                                             {/* Actions */}
-                                            <div className="flex items-center gap-2 ml-6">
-                                                <button onClick={() => window.location.href = `/addquestions/${course.course_id}`} className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg" >
+                                            <div className="flex flex-wrap items-center gap-2 md:ml-6">
+                                                <button onClick={() => window.location.href = `/addquestions/${course.course_id}`} className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg whitespace-nowrap" >
                                                     <FontAwesomeIcon icon={faClipboardList} className="text-sm" /> Quản lý đề thi </button>
-                                                <button onClick={() => toggleCurriculum(course.course_id)} className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg" >
+                                                <button onClick={() => toggleCurriculum(course.course_id)} className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg whitespace-nowrap" >
                                                     <FontAwesomeIcon icon={faSitemap} className="text-sm" /> Giáo trình
                                                 </button>
-                                                <button onClick={() => openEditCourseModal(course)} className="p-2.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200" >
+                                                <button onClick={() => toggleCodeExercises(course.course_id)} className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm font-medium rounded-lg transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg whitespace-nowrap" >
+                                                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                                        <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                    </svg>
+                                                    <span>Bài tập code</span>
+                                                </button>
+                                                <button onClick={() => openEditCourseModal(course)} className="p-2.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200 flex-shrink-0" >
                                                     <FontAwesomeIcon icon={faEdit} className="w-4 h-4" /> </button>
-                                                <button onClick={() => openDeleteModal(course)} className="p-2.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-all duration-200" >
+                                                <button onClick={() => openDeleteModal(course)} className="p-2.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-all duration-200 flex-shrink-0" >
                                                     <FontAwesomeIcon icon={faTrash} className="w-4 h-4" /> </button>
                                             </div>
                                         </div>
@@ -327,6 +381,40 @@ function Courses() {
                                                 </div>
                                             </div>
                                         )}
+                                        {/* Code Exercises Section */}
+                                        {expandedCodeExercises[course.course_id] && (
+                                            <div className="border-t border-gray-100 bg-purple-50 px-6 py-4">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <h4 className="font-semibold text-purple-900">Bài tập code</h4>
+                                                    <button onClick={() => openAddCodeExercise(course.course_id)} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md">
+                                                        <FontAwesomeIcon icon={faCirclePlus} /> Thêm bài tập code
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {(codeExercisesByCourse[course.course_id] || []).length === 0 ? (
+                                                        <p className="text-sm text-gray-500 italic">Chưa có bài tập code nào</p>
+                                                    ) : (
+                                                        (codeExercisesByCourse[course.course_id] || []).map((exercise) => (
+                                                            <div key={exercise.exercise_id} className="bg-white border rounded-lg px-4 py-2 flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="inline-block w-2 h-2 rounded-full bg-purple-500" />
+                                                                    <span className="text-sm font-medium">{exercise.title}</span>
+                                                                    {exercise.estimatedMinutes && (
+                                                                        <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                                            {exercise.estimatedMinutes}p
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button onClick={() => openEditCodeExercise(exercise)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 shadow-sm">Sửa</button>
+                                                                    <button onClick={() => openDeleteCodeExercise(exercise)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 shadow-sm">Xóa</button>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="border-t border-gray-100 bg-gray-50 px-6 py-3 flex justify-between items-center">
                                             <div className="flex gap-6 text-sm text-gray-600">{/* meta info here */}</div>
                                             <button className="text-blue-600 hover:text-blue-800 text-sm font-medium"> Xem chi tiết → </button>
@@ -376,11 +464,26 @@ function Courses() {
                 onClose={() => setLessonModal({ ...lessonModal, isOpen: false })}
                 onSubmit={submitLesson}
             />
-            {/* Delete modal for module/lesson */}
+            {/* Code Exercise modal */}
+            <CodeExerciseModal
+                isOpen={codeExerciseModal.isOpen}
+                mode={codeExerciseModal.mode}
+                initialData={codeExerciseModal.exercise}
+                courseId={codeExerciseModal.courseId}
+                onClose={() => setCodeExerciseModal({ ...codeExerciseModal, isOpen: false })}
+                onSubmit={submitCodeExercise}
+            />
+            {/* Delete modal for module/lesson/code exercise */}
             <DeleteModal
                 isOpen={deleteModal2.isOpen}
                 onClose={() => setDeleteModal2({ ...deleteModal2, isOpen: false })}
-                onSuccess={() => loadModules(expandedCourseId)}
+                onSuccess={async () => {
+                    if (deleteModal2.itemType === "Bài tập code") {
+                        await loadCodeExercises(expandedCourseId);
+                    } else {
+                        loadModules(expandedCourseId);
+                    }
+                }}
                 onDelete={deleteModal2.onDelete}
                 item={deleteModal2.item}
                 itemType={deleteModal2.itemType}
