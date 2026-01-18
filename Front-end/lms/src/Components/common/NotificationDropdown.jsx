@@ -134,14 +134,39 @@ export default function NotificationDropdown({ isOpen, onClose, buttonRef }) {
         }
     };
 
-    const handleNotificationClick = (notification) => {
+    const handleNotificationClick = async (notification) => {
         if (!notification.isRead) {
             handleMarkAsRead(notification.notificationId);
         }
 
         // Navigate based on notification type
-        if (notification.relatedType === "COURSE" && notification.relatedId) {
-            navigate(`/courses/${notification.relatedId}`);
+        if (notification.type === "NEW_COMMENT" && notification.relatedId) {
+            // Lấy thông tin comment để navigate đến đúng vị trí
+            try {
+                const { commentService } = await import("../../api/comment.service");
+                // Navigate đến trang quản lý bình luận của TA với comment ID
+                navigate(`/ta-comments?commentId=${notification.relatedId}`);
+                onClose();
+            } catch (error) {
+                console.error("Error navigating to comment:", error);
+                navigate("/ta-comments");
+                onClose();
+            }
+        } else if (notification.type === "TA_REMINDER" && notification.relatedId) {
+            // Navigate to chat page - TA will appear in conversations because message was already sent
+            navigate("/chat");
+            onClose();
+        } else if (notification.type === "TA_REMINDER_CONFIRMATION" && notification.relatedId) {
+            // Navigate to reminders page for TA
+            navigate("/ta-reminders");
+            onClose();
+        } else if (notification.relatedType === "COURSE" && notification.relatedId) {
+            navigate(`/course/${notification.relatedId}`);
+            onClose();
+        } else if (notification.relatedType === "LESSON" && notification.relatedId) {
+            // For lesson notifications, we need to get course info
+            // For now, navigate to TA comments page
+            navigate(`/ta-comments?commentId=${notification.relatedId}`);
             onClose();
         } else if (notification.relatedType === "PAYMENT") {
             navigate("/profile");
@@ -182,6 +207,12 @@ export default function NotificationDropdown({ isOpen, onClose, buttonRef }) {
                 return "🎉";
             case "COMPETITION":
                 return "🏆";
+            case "NEW_COMMENT":
+                return "💬";
+            case "TA_REMINDER":
+                return "📬";
+            case "TA_REMINDER_CONFIRMATION":
+                return "✅";
             default:
                 return "🔔";
         }

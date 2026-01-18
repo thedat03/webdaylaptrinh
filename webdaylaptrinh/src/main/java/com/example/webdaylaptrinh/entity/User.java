@@ -43,7 +43,7 @@ public class User {
     private String mobileNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private UserRole role = UserRole.USER;
 
     @Column(name = "is_active")

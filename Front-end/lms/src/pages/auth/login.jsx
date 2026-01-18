@@ -9,7 +9,7 @@ import { InputField } from "../../Components/common/InputFeild";
 function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [selectedRole, setSelectedRole] = useState(""); // "ROLE_STUDENT", "ROLE_INSTRUCTOR", "ROLE_ADMIN"
+    const [selectedRole, setSelectedRole] = useState(""); // "ROLE_STUDENT", "ROLE_INSTRUCTOR", "ROLE_TEACHING_ASSISTANT"
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
@@ -39,21 +39,21 @@ function Login() {
                 // Map role backend -> nhóm vai trò hiển thị
                 const isStudentRole = role === "ROLE_STUDENT" || role === "ROLE_USER";
                 const isInstructorRole = role === "ROLE_INSTRUCTOR";
-                const isAdminRole = role === "ROLE_ADMIN";
+                const isTARole = role === "ROLE_TEACHING_ASSISTANT";
 
                 let match = false;
                 if (selectedRole === "ROLE_STUDENT") {
                     match = isStudentRole;
                 } else if (selectedRole === "ROLE_INSTRUCTOR") {
                     match = isInstructorRole;
-                } else if (selectedRole === "ROLE_ADMIN") {
-                    match = isAdminRole;
+                } else if (selectedRole === "ROLE_TEACHING_ASSISTANT") {
+                    match = isTARole;
                 }
 
                 if (!match) {
                     const label =
-                        selectedRole === "ROLE_ADMIN"
-                            ? "Admin"
+                        selectedRole === "ROLE_TEACHING_ASSISTANT"
+                            ? "Trợ giảng"
                             : selectedRole === "ROLE_INSTRUCTOR"
                                 ? "Giáo viên"
                                 : "Học viên";
@@ -62,8 +62,8 @@ function Login() {
                     return;
                 }
 
-                if (isAdminRole) {
-                    navigate("/admin");
+                if (isTARole) {
+                    navigate("/teaching-assistant-home");
                 } else if (isInstructorRole) {
                     navigate("/teacher-home");
                 } else {
@@ -127,14 +127,14 @@ function Login() {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setSelectedRole("ROLE_ADMIN")}
-                                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${selectedRole === "ROLE_ADMIN"
+                                        onClick={() => setSelectedRole("ROLE_TEACHING_ASSISTANT")}
+                                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${selectedRole === "ROLE_TEACHING_ASSISTANT"
                                             ? "border-indigo-600 bg-indigo-50 text-indigo-700"
                                             : "border-gray-200 hover:border-gray-300 text-gray-700"
                                             }`}
                                     >
                                         <Shield className="h-6 w-6" />
-                                        <span className="text-sm font-semibold">Admin</span>
+                                        <span className="text-sm font-semibold">Trợ giảng</span>
                                     </button>
                                 </div>
                             </div>

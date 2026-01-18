@@ -114,11 +114,14 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/exams/*/my-submission").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
 
                         // Comments - GET public, POST/PUT/DELETE authenticated
-                        // Admin endpoints - đặt trước pattern tổng quát
-                        .requestMatchers(HttpMethod.GET, "/api/comments/all").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/comments/pending").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/comments/lesson/*/all").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/comments/course/*/all").hasRole("ADMIN")
+                        // TA endpoints - đặt trước pattern tổng quát
+                        .requestMatchers(HttpMethod.GET, "/api/comments/unanswered").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/comments/lesson/*/ta").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/comments/course/*/ta").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.POST, "/api/comments/*/ta-answer").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.PUT, "/api/comments/*/ta-hide").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.PUT, "/api/comments/*/ta-unhide").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.DELETE, "/api/comments/*/ta-delete").hasRole("TEACHING_ASSISTANT")
                         // Public GET endpoints
                         .requestMatchers(HttpMethod.GET, "/api/comments/lesson/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/comments/course/*").permitAll()
@@ -127,6 +130,28 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/comments").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.PUT, "/api/comments/*").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.DELETE, "/api/comments/*").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
+
+                        // Direct Questions - Hỏi trực tiếp
+                        .requestMatchers(HttpMethod.POST, "/api/direct-questions").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/direct-questions/my-questions").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.POST, "/api/direct-questions/*/convert-to-comment").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/direct-questions/ta/my-assigned").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/direct-questions/pending").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.POST, "/api/direct-questions/*/answer").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.POST, "/api/direct-questions/*/claim").hasRole("TEACHING_ASSISTANT")
+
+                        // TA Reminders - Nhắc nhở
+                        .requestMatchers(HttpMethod.POST, "/api/ta-reminders").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/ta-reminders/ta/my-reminders").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/ta-reminders/my-reminders").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.PUT, "/api/ta-reminders/*/read").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
+
+                        // TA Progress - Theo dõi tiến độ
+                        .requestMatchers(HttpMethod.GET, "/api/ta-progress/**").hasRole("TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/ta-progress/assigned-courses").hasRole("TEACHING_ASSISTANT")
+
+                        // Admin - Quản lý phân công TA
+                        .requestMatchers("/api/admin/ta-assignments/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated()
                 )

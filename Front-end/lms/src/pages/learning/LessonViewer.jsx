@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { message } from "antd";
 import CommentSection from "../../Components/common/CommentSection";
 import logo from "../../assets/images/logo.jpg";
 import { learningService } from "../../api/learning.service";
 import { codeService } from "../../api/code.service";
 import { lessonProgressService } from "../../api/lessonProgress.service";
+import { courseService } from "../../api/course.service";
 import { JUDGE0_LANGUAGE_MAP } from "../../constants/judge0Languages";
 import { parseMarkdownToHTML } from "../../utils/markdownParser";
 
@@ -50,6 +51,9 @@ function parseCodeTestCases(raw) {
 export default function LessonViewer() {
     const navigate = useNavigate();
     const { state } = useLocation();
+    const { lessonId: urlLessonId } = useParams();
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCourseId = urlParams.get("courseId");
 
     const formatMinutes = (minutes) => {
         const total = Number(minutes) || 0;
@@ -69,12 +73,19 @@ export default function LessonViewer() {
         return "—";
     };
 
-    // --- State & Logic (Giữ nguyên) ---
-    const lesson = state?.lesson || null;
-    const modules = useMemo(() => state?.modules || [], [state]);
-    const rawLessonsByModule = state?.lessonsByModule;
+    // --- State & Logic ---
+    const [loadedLesson, setLoadedLesson] = useState(null);
+    const [loadedModules, setLoadedModules] = useState([]);
+    const [loadedLessonsByModule, setLoadedLessonsByModule] = useState({});
+    const [loadedCourseId, setLoadedCourseId] = useState(null);
+    const [loadingData, setLoadingData] = useState(false);
+
+    // Use state if available, otherwise use loaded data
+    const lesson = state?.lesson || loadedLesson;
+    const modules = useMemo(() => state?.modules || loadedModules, [state, loadedModules]);
+    const rawLessonsByModule = state?.lessonsByModule || loadedLessonsByModule;
     const lessonsByModule = useMemo(() => rawLessonsByModule || {}, [rawLessonsByModule]);
-    const courseId = state?.courseId || null;
+    const courseId = state?.courseId || loadedCourseId || urlCourseId;
 
     const [expanded, setExpanded] = useState({});
     const [isDiscussionOpen, setIsDiscussionOpen] = useState(false);
@@ -84,6 +95,80 @@ export default function LessonViewer() {
     const [canAccess, setCanAccess] = useState(false);
     const [lessonCompleted, setLessonCompleted] = useState(false);
     const [completedLessonsSet, setCompletedLessonsSet] = useState(new Set());
+    // Video progress tracking
+    const [videoWatchedTime, setVideoWatchedTime] = useState(0); // Thời gian đã xem (giây)
+    const [videoDuration, setVideoDuration] = useState(0); // Tổng thời gian video (giây)
+    const [youtubePlayer, setYoutubePlayer] = useState(null);
+
+    // Load data from API if state is not available
+    useEffect(() => {
+        const loadDataFromAPI = async () => {
+            // Only load if we don't have state but have URL params
+            if (state?.lesson || !urlLessonId || !urlCourseId) {
+                return;
+            }
+
+            setLoadingData(true);
+            try {
+                // Load course, modules, and lessons
+                const [, modulesRes] = await Promise.all([
+                    courseService.getCourseById(urlCourseId),
+                    courseService.getModules(urlCourseId)
+                ]);
+
+                if (!modulesRes.success || !Array.isArray(modulesRes.data)) {
+                    message.error("Không thể tải dữ liệu khóa học");
+                    return;
+                }
+
+                const modulesData = modulesRes.data;
+                setLoadedModules(modulesData);
+                setLoadedCourseId(urlCourseId);
+
+                // Load lessons for each module
+                const lessonPromises = modulesData.map(m => courseService.getLessons(m.module_id));
+                const lessonResults = await Promise.all(lessonPromises);
+                const lessonsMap = {};
+
+                modulesData.forEach((module, index) => {
+                    if (lessonResults[index].success && Array.isArray(lessonResults[index].data)) {
+                        lessonsMap[module.module_id] = lessonResults[index].data;
+                    } else {
+                        lessonsMap[module.module_id] = [];
+                    }
+                });
+
+                setLoadedLessonsByModule(lessonsMap);
+
+                // Find the lesson by lessonId
+                let foundLesson = null;
+                for (const module of modulesData) {
+                    const lessons = lessonsMap[module.module_id] || [];
+                    foundLesson = lessons.find(l =>
+                        l.lesson_id === urlLessonId ||
+                        l.lessonId === urlLessonId ||
+                        l.id === urlLessonId
+                    );
+                    if (foundLesson) break;
+                }
+
+                if (foundLesson) {
+                    setLoadedLesson(foundLesson);
+                } else {
+                    message.error("Không tìm thấy bài học");
+                    navigate(`/courses/${urlCourseId}`);
+                }
+            } catch (error) {
+                console.error("Error loading lesson data:", error);
+                message.error("Lỗi khi tải dữ liệu bài học");
+            } finally {
+                setLoadingData(false);
+            }
+        };
+
+        loadDataFromAPI();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [urlLessonId, urlCourseId, navigate]);
 
     // Tìm module_id của lesson hiện tại
     const currentModuleId = useMemo(() => {
@@ -135,6 +220,41 @@ export default function LessonViewer() {
             cancelled = true;
         };
     }, [courseId, userId, navigate]);
+
+    // Handle commentId parameter for navigation
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const commentId = urlParams.get("commentId");
+        if (commentId && lesson && !accessLoading && !loadingData) {
+            // Always open discussion modal when commentId is present
+            setIsDiscussionOpen(true);
+
+            // Wait for comments to load, then scroll
+            setTimeout(() => {
+                const commentElement = document.getElementById(`comment-${commentId}`);
+                if (commentElement) {
+                    commentElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                    commentElement.classList.add("ring-4", "ring-indigo-500", "ring-opacity-50", "rounded-lg");
+                    setTimeout(() => {
+                        commentElement.classList.remove("ring-4", "ring-indigo-500", "ring-opacity-50");
+                    }, 3000);
+                } else {
+                    // If comment not found, scroll to comments section
+                    setTimeout(() => {
+                        const commentsSection = document.getElementById("comments-section");
+                        if (commentsSection) {
+                            commentsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }
+                    }, 300);
+                }
+                // Clean up URL but keep courseId if present
+                const newUrl = urlCourseId
+                    ? `${window.location.pathname}?courseId=${urlCourseId}`
+                    : window.location.pathname;
+                window.history.replaceState({}, "", newUrl);
+            }, 1000);
+        }
+    }, [lesson, accessLoading, loadingData, urlCourseId]);
 
     useEffect(() => {
         if (modules && modules.length && !isInitialized) {
@@ -207,6 +327,21 @@ export default function LessonViewer() {
     const [isRunning, setIsRunning] = useState(false);
     const [runError, setRunError] = useState("");
     const embedSrc = useMemo(() => toYouTubeEmbed(lesson?.contentUrl || ""), [lesson]);
+    const videoId = useMemo(() => {
+        if (!lesson?.contentUrl) return null;
+        try {
+            const url = new URL(lesson.contentUrl);
+            if (url.hostname === "youtu.be") {
+                return url.pathname.replace("/", "");
+            }
+            if (url.hostname.includes("youtube.com")) {
+                return url.searchParams.get("v");
+            }
+        } catch {
+            return null;
+        }
+        return null;
+    }, [lesson?.contentUrl]);
     const codeLanguageLabel = useMemo(() => {
         if (!lesson?.codeLanguageId) return null;
         return JUDGE0_LANGUAGE_MAP[lesson.codeLanguageId] || `Judge0 ID ${lesson.codeLanguageId}`;
@@ -271,8 +406,14 @@ export default function LessonViewer() {
         if (lesson?.lesson_id && userId) {
             checkLessonCompletionStatus();
         }
+        
+        // Reset video progress khi chuyển lesson
+        if (lesson?.type === "VIDEO") {
+            setVideoWatchedTime(0);
+            setVideoDuration(0);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [lesson?.lesson_id, parsedLessonTestCases, userId]);
+    }, [lesson?.lesson_id, parsedLessonTestCases, userId, lesson?.type]);
 
     // Load trạng thái hoàn thành của tất cả bài học trong khóa học
     useEffect(() => {
@@ -282,8 +423,186 @@ export default function LessonViewer() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [courseId, userId]);
 
+    // Progress tracking interval
+    let progressInterval = null;
+
+    const startTrackingProgress = (player) => {
+        if (progressInterval) return;
+        
+        progressInterval = setInterval(() => {
+            try {
+                const currentTime = player.getCurrentTime();
+                const duration = player.getDuration();
+                
+                if (currentTime && duration) {
+                    setVideoDuration(duration);
+                    
+                    // Lưu watchedTime lớn nhất (để track progress ngay cả khi user tua lại)
+                    setVideoWatchedTime(prev => {
+                        const maxTime = Math.max(prev || 0, currentTime);
+                        const watchedPercent = Math.round((maxTime / duration) * 100);
+                        // Debug log mỗi 10%
+                        if (watchedPercent % 10 === 0 && watchedPercent > 0) {
+                            console.log(`Video progress: ${watchedPercent}% (${Math.round(maxTime)}s / ${Math.round(duration)}s)`);
+                        }
+                        return maxTime;
+                    });
+                }
+            } catch (e) {
+                console.error("Error tracking video progress:", e);
+            }
+        }, 1000); // Update mỗi giây
+    };
+
+    const stopTrackingProgress = () => {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+    };
+
+    // Load YouTube IFrame API và khởi tạo player
+    useEffect(() => {
+        if (lesson?.type !== "VIDEO" || !videoId) {
+            // Cleanup nếu không phải video
+            stopTrackingProgress();
+            if (youtubePlayer) {
+                try {
+                    youtubePlayer.destroy();
+                } catch (e) {
+                    console.error("Error destroying YouTube player:", e);
+                }
+                setYoutubePlayer(null);
+            }
+            return;
+        }
+
+        let playerInstance = null;
+
+        const initializePlayer = () => {
+            if (!videoId || !window.YT || !window.YT.Player) return;
+
+            try {
+                playerInstance = new window.YT.Player('youtube-player', {
+                    videoId: videoId,
+                    playerVars: {
+                        'playsinline': 1,
+                        'enablejsapi': 1,
+                        'origin': window.location.origin
+                    },
+                    events: {
+                        'onReady': (event) => {
+                            setYoutubePlayer(event.target);
+                            const duration = event.target.getDuration();
+                            if (duration) {
+                                setVideoDuration(duration);
+                            }
+                        },
+                        'onStateChange': (event) => {
+                            // State 1 = playing, 2 = paused
+                            if (event.data === window.YT.PlayerState.PLAYING) {
+                                startTrackingProgress(event.target);
+                            } else if (event.data === window.YT.PlayerState.PAUSED) {
+                                stopTrackingProgress();
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Error initializing YouTube player:", e);
+            }
+        };
+
+        // Kiểm tra xem script đã được load chưa
+        if (window.YT && window.YT.Player) {
+            initializePlayer();
+        } else {
+            // Load YouTube IFrame API script
+            const existingScript = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+            if (!existingScript) {
+                const tag = document.createElement('script');
+                tag.src = 'https://www.youtube.com/iframe_api';
+                const firstScriptTag = document.getElementsByTagName('script')[0];
+                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            }
+
+            // Đợi API load xong
+            const originalCallback = window.onYouTubeIframeAPIReady;
+            window.onYouTubeIframeAPIReady = () => {
+                if (originalCallback) originalCallback();
+                initializePlayer();
+            };
+        }
+
+        return () => {
+            stopTrackingProgress();
+            if (playerInstance) {
+                try {
+                    playerInstance.destroy();
+                } catch (e) {
+                    console.error("Error destroying YouTube player:", e);
+                }
+            }
+            if (youtubePlayer) {
+                try {
+                    youtubePlayer.destroy();
+                } catch (e) {
+                    console.error("Error destroying YouTube player:", e);
+                }
+                setYoutubePlayer(null);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [videoId, lesson?.type]);
+
+    const initializePlayer = () => {
+        if (!videoId || !window.YT || !window.YT.Player) return;
+
+        const player = new window.YT.Player('youtube-player', {
+            videoId: videoId,
+            playerVars: {
+                'playsinline': 1,
+                'enablejsapi': 1,
+                'origin': window.location.origin
+            },
+            events: {
+                'onReady': (event) => {
+                    setYoutubePlayer(event.target);
+                    const duration = event.target.getDuration();
+                    if (duration) {
+                        setVideoDuration(duration);
+                    }
+                },
+                'onStateChange': (event) => {
+                    // State 1 = playing, 2 = paused
+                    if (event.data === window.YT.PlayerState.PLAYING) {
+                        startTrackingProgress(event.target);
+                    } else if (event.data === window.YT.PlayerState.PAUSED) {
+                        stopTrackingProgress();
+                    }
+                }
+            }
+        });
+    };
+
+    // Kiểm tra xem đã xem đủ nửa video chưa
+    const canMarkAsCompleted = useMemo(() => {
+        if (lessonCompleted) return false;
+        if (lesson?.type !== "VIDEO") return true; // Cho phép với QUIZ và CODE
+        if (!videoDuration || videoDuration === 0) return false; // Chưa có duration
+        // Phải xem >= 50% video
+        return videoWatchedTime >= videoDuration / 2;
+    }, [lessonCompleted, lesson?.type, videoWatchedTime, videoDuration]);
+
     const markLessonAsCompleted = async () => {
         if (!lesson?.lesson_id || !userId || lessonCompleted) return;
+        
+        // Kiểm tra điều kiện xem video
+        if (lesson?.type === "VIDEO" && !canMarkAsCompleted) {
+            const watchedPercent = videoDuration > 0 ? Math.round((videoWatchedTime / videoDuration) * 100) : 0;
+            message.warning(`Bạn cần xem ít nhất 50% video để đánh dấu hoàn thành. Hiện tại: ${watchedPercent}%`);
+            return;
+        }
 
         try {
             const result = await lessonProgressService.markLessonCompleted(userId, lesson.lesson_id);
@@ -472,20 +791,25 @@ export default function LessonViewer() {
                         <div className={`w-full ${lesson.type === "QUIZ" ? "min-h-[calc(100vh-50px-60px)]" : "aspect-video max-h-[calc(100vh-50px-60px)]"} mx-auto ${lesson.type === "VIDEO" ? "bg-black" : "bg-white"} flex items-center justify-center`}>
                             {lesson.type === "VIDEO" ? (
                                 <div className="relative w-full h-full">
-                                    <iframe
-                                        src={embedSrc}
-                                        title={lesson.title}
-                                        className="w-full h-full"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                        allowFullScreen
-                                        onLoad={() => {
-                                            // Cập nhật thời gian truy cập khi video load
-                                            if (userId && lesson.lesson_id) {
-                                                lessonProgressService.updateLessonAccess(userId, lesson.lesson_id);
-                                            }
-                                        }}
-                                    />
-                                    {!lessonCompleted && (
+                                    {/* YouTube Player Container */}
+                                    <div id="youtube-player" className="w-full h-full"></div>
+                                    {/* Fallback iframe nếu YouTube API chưa load */}
+                                    {!youtubePlayer && embedSrc && (
+                                        <iframe
+                                            src={embedSrc}
+                                            title={lesson.title}
+                                            className="w-full h-full absolute inset-0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowFullScreen
+                                            onLoad={() => {
+                                                // Cập nhật thời gian truy cập khi video load
+                                                if (userId && lesson.lesson_id) {
+                                                    lessonProgressService.updateLessonAccess(userId, lesson.lesson_id);
+                                                }
+                                            }}
+                                        />
+                                    )}
+                                    {!lessonCompleted && (lesson.type !== "VIDEO" || canMarkAsCompleted) && (
                                         <div className="absolute bottom-4 right-4">
                                             <button
                                                 onClick={markLessonAsCompleted}
@@ -729,7 +1053,7 @@ export default function LessonViewer() {
 
                                         </div>
                                     </div>
-                                    {!lessonCompleted && (
+                                    {!lessonCompleted && (lesson.type !== "VIDEO" || canMarkAsCompleted) && (
                                         <div className="absolute bottom-4 right-4">
                                             <button
                                                 onClick={markLessonAsCompleted}
@@ -888,7 +1212,7 @@ export default function LessonViewer() {
                             <h3 className="font-bold text-gray-800">{lesson.title}</h3>
                             <button onClick={() => setIsDiscussionOpen(false)} className="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
                         </div>
-                        <div className="flex-1 bg-gray-50 overflow-y-auto p-6">
+                        <div className="flex-1 bg-gray-50 overflow-y-auto p-6" id="comments-section">
                             <CommentSection lessonId={lesson.lesson_id} enableRating={false} />
                         </div>
                     </div>

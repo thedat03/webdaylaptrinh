@@ -29,17 +29,17 @@ public class Comment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "lesson_id", nullable = true)
-    @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"comments", "module", "exercises"})
     private Lesson lesson; // null nếu comment cho course
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id", nullable = true)
-    @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"comments", "modules", "lessons", "instructor"})
     private Course course; // null nếu comment cho lesson
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exercise_id", nullable = true)
-    @JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"comments", "lesson"})
     private CodeExercise exercise; // null nếu comment cho lesson hoặc course
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -64,6 +64,21 @@ public class Comment {
     @Builder.Default
     private Boolean isApproved = true; // Mặc định hiển thị ngay, admin có thể xóa sau
 
+    @Column(name = "is_hidden", nullable = false)
+    @Builder.Default
+    private Boolean isHidden = false; // Bình luận bị ẩn bởi TA/Admin
+
+    @Column(name = "is_answered", nullable = false)
+    @Builder.Default
+    private Boolean isAnswered = false; // Đã được TA trả lời chưa
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "answered_by_ta_id", nullable = true)
+    private User answeredByTa; // TA đã trả lời (null nếu chưa có)
+
+    @Column(name = "answered_at")
+    private LocalDateTime answeredAt; // Thời điểm TA trả lời
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -79,11 +94,20 @@ public class Comment {
         if (isApproved == null) {
             isApproved = true; // Mặc định hiển thị ngay
         }
+        if (isHidden == null) {
+            isHidden = false;
+        }
+        if (isAnswered == null) {
+            isAnswered = false;
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+        if (isAnswered != null && isAnswered && answeredAt == null && answeredByTa != null) {
+            answeredAt = LocalDateTime.now();
+        }
     }
 }
 

@@ -21,12 +21,12 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
     @Query("SELECT c FROM Comment c WHERE c.lesson.lesson_id = :lessonId ORDER BY c.createdAt ASC")
     List<Comment> findByLesson_LessonIdOrderByCreatedAtAsc(@Param("lessonId") UUID lessonId);
     
-    // Lấy comment đã được duyệt
-    @Query("SELECT c FROM Comment c WHERE c.lesson.lesson_id = :lessonId AND c.isApproved = true AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
+    // Lấy comment đã được duyệt và chưa bị ẩn
+    @Query("SELECT c FROM Comment c WHERE c.lesson.lesson_id = :lessonId AND c.isApproved = true AND (c.isHidden IS NULL OR c.isHidden = false) AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
     List<Comment> findByLesson_LessonIdAndIsApprovedTrueAndParentCommentIsNullOrderByCreatedAtDesc(@Param("lessonId") UUID lessonId);
     
-    // Lấy reply của một comment (tất cả reply, không cần filter isApproved)
-    @Query("SELECT c FROM Comment c WHERE c.parentComment.commentId = :parentCommentId ORDER BY c.createdAt ASC")
+    // Lấy reply của một comment (tất cả reply chưa bị ẩn, không cần filter isApproved)
+    @Query("SELECT c FROM Comment c WHERE c.parentComment.commentId = :parentCommentId AND (c.isHidden IS NULL OR c.isHidden = false) ORDER BY c.createdAt ASC")
     List<Comment> findByParentComment_CommentIdOrderByCreatedAtAsc(@Param("parentCommentId") UUID parentCommentId);
     
     // Lấy tất cả comment (cho admin quản lý)
@@ -49,8 +49,8 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
     @Query("SELECT COUNT(c) FROM Comment c WHERE c.lesson.lesson_id = :lessonId AND c.isApproved = true")
     long countByLesson_LessonIdAndIsApprovedTrue(@Param("lessonId") UUID lessonId);
     
-    // Lấy comment của một course (chỉ comment gốc, không phải reply)
-    @Query("SELECT c FROM Comment c WHERE c.course.course_id = :courseId AND c.parentComment IS NULL AND c.isApproved = true ORDER BY c.createdAt DESC")
+    // Lấy comment của một course (chỉ comment gốc, không phải reply, đã duyệt và chưa bị ẩn)
+    @Query("SELECT c FROM Comment c WHERE c.course.course_id = :courseId AND c.parentComment IS NULL AND c.isApproved = true AND (c.isHidden IS NULL OR c.isHidden = false) ORDER BY c.createdAt DESC")
     List<Comment> findByCourse_CourseIdAndIsApprovedTrueAndParentCommentIsNullOrderByCreatedAtDesc(@Param("courseId") UUID courseId);
     
     // Lấy tất cả comment của một course (cho admin)
@@ -65,12 +65,12 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
     @Query("DELETE FROM Comment c WHERE c.course.course_id = :courseId")
     void deleteByCourseId(@Param("courseId") UUID courseId);
     
-    // Lấy featured comments (comments có rating từ tất cả courses, đã duyệt, không phải reply)
-    @Query("SELECT c FROM Comment c WHERE c.course IS NOT NULL AND c.rating IS NOT NULL AND c.rating > 0 AND c.isApproved = true AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
+    // Lấy featured comments (comments có rating từ tất cả courses, đã duyệt, chưa bị ẩn, không phải reply)
+    @Query("SELECT c FROM Comment c WHERE c.course IS NOT NULL AND c.rating IS NOT NULL AND c.rating > 0 AND c.isApproved = true AND (c.isHidden IS NULL OR c.isHidden = false) AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
     List<Comment> findFeaturedComments();
     
-    // Lấy tất cả comment đã duyệt của một exercise (chỉ comment gốc)
-    @Query("SELECT c FROM Comment c WHERE c.exercise.exercise_id = :exerciseId AND c.isApproved = true AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
+    // Lấy tất cả comment đã duyệt và chưa bị ẩn của một exercise (chỉ comment gốc)
+    @Query("SELECT c FROM Comment c WHERE c.exercise.exercise_id = :exerciseId AND c.isApproved = true AND (c.isHidden IS NULL OR c.isHidden = false) AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
     List<Comment> findByExercise_ExerciseIdAndIsApprovedTrueAndParentCommentIsNullOrderByCreatedAtDesc(@Param("exerciseId") UUID exerciseId);
     
     // Lấy tất cả comment của một exercise (cho admin)

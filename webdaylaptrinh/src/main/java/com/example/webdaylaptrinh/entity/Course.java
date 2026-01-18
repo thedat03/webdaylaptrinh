@@ -94,6 +94,10 @@ public class Course {
     @JsonProperty("rating")
     private Double rating;
 
+    // Số ngày kỳ vọng để hoàn thành khóa học (tính tự động hoặc set thủ công)
+    @Column(name = "planned_days")
+    private Integer plannedDays; // null = tự động tính
+
     // Methods to compute statistics (called by service)
     public void computeStatistics(List<Comment> comments) {
         // Compute lessons count

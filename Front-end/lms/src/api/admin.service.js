@@ -1,106 +1,74 @@
-import axios from "axios";
-import { API_BASE_URL } from "./constant";
+import api from "./api";
 
-const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        "Content-Type": "application/json",
-    },
-});
-
-api.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem("token");
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
-);
-
-async function getAllCourses(includePending = false) {
+// TA Assignment API
+async function getAllAssignments() {
     try {
-        const params = includePending ? { admin: true } : {};
-        const { data } = await api.get("/api/courses", { params });
+        const { data } = await api.get("/api/admin/ta-assignments");
         return { success: true, data };
     } catch (error) {
-        console.error("Error fetching courses:", error);
-        return { success: false, error: "Could not fetch courses" };
+        console.error("Error getting assignments:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to get assignments" };
     }
 }
 
-async function getCourseById(courseId) {
+async function getAllTAs() {
     try {
-        const { data } = await api.get(`/api/courses/${courseId}`);
+        const { data } = await api.get("/api/admin/ta-assignments/tas");
         return { success: true, data };
     } catch (error) {
-        console.error("Error fetching course:", error);
-        return { success: false, error: "Could not fetch course details" };
+        console.error("Error getting TAs:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to get TAs" };
     }
 }
 
-async function createCourse(courseData) {
+async function getAllCourses() {
     try {
-        const { data } = await api.post("/api/courses", courseData);
+        const { data } = await api.get("/api/admin/ta-assignments/courses");
         return { success: true, data };
     } catch (error) {
-        console.error("Error creating course:", error);
-        return { success: false, error: "Could not create course" };
+        console.error("Error getting courses:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to get courses" };
     }
 }
 
-async function updateCourse(courseId, courseData) {
+async function assignTAToCourse(taId, courseId) {
     try {
-        const { data } = await api.put(`/api/courses/${courseId}`, courseData);
+        const { data } = await api.post("/api/admin/ta-assignments", { taId, courseId });
         return { success: true, data };
     } catch (error) {
-        console.error("Error updating course:", error);
-        return { success: false, error: "Could not update course" };
+        console.error("Error assigning TA to course:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to assign TA to course" };
     }
 }
 
-async function deleteCourse(courseId) {
+async function deleteAssignment(assignmentId) {
     try {
-        const { data } = await api.delete(`/api/courses/${courseId}`);
-        return { success: true, data };
+        await api.delete(`/api/admin/ta-assignments/${assignmentId}`);
+        return { success: true };
     } catch (error) {
-        console.error("Error deleting course:", error);
-        return { success: false, error: "Could not delete course" };
+        console.error("Error deleting assignment:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to delete assignment" };
     }
 }
 
+async function removeAssignment(taId, courseId) {
+    try {
+        await api.delete(`/api/admin/ta-assignments/ta/${taId}/course/${courseId}`);
+        return { success: true };
+    } catch (error) {
+        console.error("Error removing assignment:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to remove assignment" };
+    }
+}
+
+// User Management APIs
 async function getAllUsers() {
     try {
         const { data } = await api.get("/api/users");
         return { success: true, data };
     } catch (error) {
-        console.error("Error fetching users:", error);
-        return { success: false, error: "Could not fetch users" };
-    }
-}
-
-async function getAllLearning() {
-    try {
-        const { data } = await api.get("/api/learning");
-        return { success: true, data };
-    } catch (error) {
-        console.error("Error fetching enrollments:", error);
-        return { success: false, error: "Could not fetch enrollments" };
-    }
-}
-
-async function uploadImage(file) {
-    try {
-        const formData = new FormData();
-        formData.append("file", file);
-        const { data } = await api.post("/api/files/upload", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-        });
-        return { success: true, data };
-    } catch (error) {
-        console.error("Error uploading image:", error);
-        return { success: false, error: "Could not upload image" };
+        console.error("Error getting users:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to get users" };
     }
 }
 
@@ -108,19 +76,19 @@ async function createUser(userData) {
     try {
         const { data } = await api.post("/api/users", userData);
         return { success: true, data };
-    } catch (err) {
-        console.error("Error creating user:", err);
-        return { success: false, error: err.response?.data?.message || "Unable to create user" };
+    } catch (error) {
+        console.error("Error creating user:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to create user" };
     }
 }
 
-async function updateUser(userId, updatedData) {
+async function updateUser(userId, userData) {
     try {
-        const { data } = await api.put(`/api/users/${userId}`, updatedData);
+        const { data } = await api.put(`/api/users/${userId}`, userData);
         return { success: true, data };
-    } catch (err) {
-        console.error("Error updating user:", err);
-        return { success: false, error: "Unable to update user" };
+    } catch (error) {
+        console.error("Error updating user:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to update user" };
     }
 }
 
@@ -128,77 +96,21 @@ async function deleteUser(userId) {
     try {
         await api.delete(`/api/users/${userId}`);
         return { success: true };
-    } catch (err) {
-        console.error("Error deleting user:", err);
-        return { success: false, error: err.response?.data?.message || "Unable to delete user" };
-    }
-}
-
-async function createQuestion(questionData) {
-    try {
-        const { data } = await api.post("/api/questions", questionData);
-        return { success: true, data };
-    } catch (err) {
-        console.error("Error creating question:", err);
-        return { success: false, error: err.response?.data?.message || "Unable to create question" };
-    }
-}
-
-async function updateQuestion(questionId, questionData) {
-    try {
-        const { data } = await api.put(`/api/questions/${questionId}`, questionData);
-        return { success: true, data };
-    } catch (err) {
-        console.error("Error updating question:", err);
-        return { success: false, error: err.response?.data?.message || "Unable to update question" };
-    }
-}
-
-async function deleteQuestion(questionId) {
-    try {
-        await api.delete(`/api/questions/${questionId}`);
-        return { success: true };
-    } catch (err) {
-        console.error("Error deleting question:", err);
-        return { success: false, error: err.response?.data?.message || "Unable to delete question" };
-    }
-}
-
-async function approveCourse(courseId) {
-    try {
-        const { data } = await api.put(`/api/courses/${courseId}/approve`);
-        return { success: true, data };
     } catch (error) {
-        console.error("Error approving course:", error);
-        return { success: false, error: error.response?.data?.message || "Could not approve course" };
-    }
-}
-
-async function rejectCourse(courseId) {
-    try {
-        const { data } = await api.put(`/api/courses/${courseId}/reject`);
-        return { success: true, data };
-    } catch (error) {
-        console.error("Error rejecting course:", error);
-        return { success: false, error: error.response?.data?.message || "Could not reject course" };
+        console.error("Error deleting user:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to delete user" };
     }
 }
 
 export const adminService = {
+    getAllAssignments,
+    getAllTAs,
     getAllCourses,
-    getCourseById,
-    createCourse,
-    updateCourse,
-    deleteCourse,
-    uploadImage,
-    createQuestion,
-    updateQuestion,
-    deleteQuestion,
+    assignTAToCourse,
+    deleteAssignment,
+    removeAssignment,
     getAllUsers,
     createUser,
     updateUser,
-    deleteUser,
-    getAllLearning,
-    approveCourse,
-    rejectCourse,
+    deleteUser
 };

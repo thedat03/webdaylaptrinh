@@ -41,8 +41,8 @@ function TeacherCourses() {
             const currentUser = authService.getCurrentUser();
             const currentUserId = currentUser?.id || "";
 
-            // Lấy tất cả khóa học (bao gồm cả PENDING) để giáo viên thấy cả khóa đang chờ duyệt
-            const result = await adminService.getAllCourses(true);
+            // Lấy tất cả khóa học (public endpoint) để giáo viên thấy cả khóa đang chờ duyệt
+            const result = await courseService.getAllCourses();
             if (result.success && result.data) {
                 let coursesData = result.data;
                 if (typeof coursesData === 'string' && coursesData.trim().startsWith('[')) {

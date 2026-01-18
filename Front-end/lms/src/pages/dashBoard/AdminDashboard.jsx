@@ -11,6 +11,7 @@ import PromotionManagement from "./PromotionManagement";
 import CommentManagement from "./CommentManagement";
 import PaymentManagement from "./PaymentManagement";
 import AdminCourseReview from "./AdminCourseReview";
+import TAAssignments from "./TAAssignments";
 import { authService } from "../../api/auth.service";
 
 
@@ -35,6 +36,8 @@ function AdminDashboard() {
                 return <Users />;
             case "courses":
                 return <AdminCourseReview />;
+            case "ta-assignments":
+                return <TAAssignments />;
             case "categories":
                 return <CategoryManagement />;
             case "banners":

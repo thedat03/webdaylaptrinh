@@ -63,27 +63,146 @@ public class CommentController {
         }
     }
 
-    // Lấy tất cả comment (bao gồm chưa duyệt) - cho admin
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/lesson/{lessonId}/all")
-    public ResponseEntity<List<Comment>> getAllCommentsByLesson(@PathVariable UUID lessonId) {
+    // TA xem tất cả comment trong bài học
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    @GetMapping("/lesson/{lessonId}/ta")
+    public ResponseEntity<List<Comment>> getCommentsByLessonForTA(@PathVariable UUID lessonId, Authentication authentication) {
         try {
-            List<Comment> comments = commentService.getAllCommentsByLesson(lessonId);
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+            
+            List<Comment> comments = commentService.getCommentsForTAByLesson(taId, lessonId);
             return ResponseEntity.ok(comments);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    // Lấy tất cả comment của một course (cho admin)
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/course/{courseId}/all")
-    public ResponseEntity<List<Comment>> getAllCommentsByCourse(@PathVariable UUID courseId) {
+    // TA xem tất cả comment trong khóa học
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    @GetMapping("/course/{courseId}/ta")
+    public ResponseEntity<List<Comment>> getCommentsByCourseForTA(@PathVariable UUID courseId, Authentication authentication) {
         try {
-            List<Comment> comments = commentService.getAllCommentsByCourse(courseId);
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+            
+            List<Comment> comments = commentService.getCommentsForTA(taId, courseId);
             return ResponseEntity.ok(comments);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // TA xem tất cả comment chưa được trả lời
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    @GetMapping("/unanswered")
+    public ResponseEntity<List<Comment>> getUnansweredComments(Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+            
+            List<Comment> comments = commentService.getUnansweredCommentsForTA(taId);
+            return ResponseEntity.ok(comments);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // TA xem TẤT CẢ comment (cả đã trả lời và chưa trả lời) trong các khóa học được phân công
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    @GetMapping("/ta/all")
+    public ResponseEntity<List<Comment>> getAllCommentsForTA(Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+            
+            List<Comment> comments = commentService.getAllCommentsForTA(taId);
+            return ResponseEntity.ok(comments);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // TA trả lời comment
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    @PostMapping("/{commentId}/ta-answer")
+    public ResponseEntity<?> answerCommentAsTA(@PathVariable UUID commentId, @RequestBody Map<String, Object> request, Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+
+            String responseContent = request.get("content").toString();
+            if (responseContent == null || responseContent.trim().isEmpty()) {
+                Map<String, Object> errorMap = new java.util.HashMap<>();
+                errorMap.put("error", "Content is required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorMap);
+            }
+
+            Comment reply = commentService.answerCommentAsTA(commentId, taId, responseContent);
+            return ResponseEntity.ok(reply);
+        } catch (Exception e) {
+            Map<String, Object> errorMap = new java.util.HashMap<>();
+            errorMap.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorMap);
+        }
+    }
+
+    // TA ẩn bình luận
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    @PutMapping("/{commentId}/ta-hide")
+    public ResponseEntity<?> hideCommentByTA(@PathVariable UUID commentId, Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+
+            Comment comment = commentService.hideCommentByTA(commentId, taId);
+            return ResponseEntity.ok(comment);
+        } catch (Exception e) {
+            Map<String, Object> errorMap = new java.util.HashMap<>();
+            errorMap.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorMap);
+        }
+    }
+
+    // TA hiện lại bình luận đã ẩn
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    @PutMapping("/{commentId}/ta-unhide")
+    public ResponseEntity<?> unhideCommentByTA(@PathVariable UUID commentId, Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+
+            Comment comment = commentService.unhideCommentByTA(commentId, taId);
+            return ResponseEntity.ok(comment);
+        } catch (Exception e) {
+            Map<String, Object> errorMap = new java.util.HashMap<>();
+            errorMap.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorMap);
+        }
+    }
+
+    // TA xóa bình luận
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    @DeleteMapping("/{commentId}/ta-delete")
+    public ResponseEntity<?> deleteCommentByTA(@PathVariable UUID commentId, Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+
+            commentService.deleteCommentByTA(commentId, taId);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            Map<String, Object> errorMap = new java.util.HashMap<>();
+            errorMap.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorMap);
         }
     }
 
@@ -253,53 +372,6 @@ public class CommentController {
         }
     }
 
-    // Admin duyệt comment
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/{commentId}/approve")
-    public ResponseEntity<Comment> approveComment(@PathVariable UUID commentId) {
-        try {
-            Comment comment = commentService.approveComment(commentId);
-            return ResponseEntity.ok(comment);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-    }
-
-    // Admin từ chối comment
-    @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/{commentId}/reject")
-    public ResponseEntity<Void> rejectComment(@PathVariable UUID commentId) {
-        try {
-            commentService.rejectComment(commentId);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-    }
-
-    // Lấy tất cả comment (cho admin quản lý)
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/all")
-    public ResponseEntity<List<Comment>> getAllComments() {
-        try {
-            List<Comment> comments = commentService.getAllComments();
-            return ResponseEntity.ok(comments);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-    
-    // Lấy tất cả comment chưa duyệt (nếu cần trong tương lai)
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/pending")
-    public ResponseEntity<List<Comment>> getPendingComments() {
-        try {
-            List<Comment> comments = commentService.getPendingComments();
-            return ResponseEntity.ok(comments);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
     
     // Lấy featured comments (comments có rating từ tất cả courses) - Public endpoint
     @GetMapping("/featured")

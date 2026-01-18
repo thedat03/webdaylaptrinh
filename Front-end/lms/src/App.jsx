@@ -1,6 +1,7 @@
 import './App.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from './pages/auth/login';
+import AdminLogin from './pages/auth/admin-login';
 import Register from './pages/auth/register'
 import Course from './pages/course/course.jsx';
 import Courses from './pages/course/Courses';
@@ -11,6 +12,12 @@ import HomeWrapper from './pages/landing/HomeWrapper';
 import Home from './pages/landing/Home';
 import TeacherHome from './pages/landing/TeacherHome';
 import TeachingAssistantHome from './pages/landing/TeachingAssistantHome';
+import TAComments from './pages/landing/TAComments';
+import TAQuestions from './pages/landing/TAQuestions';
+import TAProgress from './pages/landing/TAProgress';
+import TAReminders from './pages/landing/TAReminders';
+import TAStudentDetail from './pages/landing/TAStudentDetail';
+import TAAssignments from './pages/dashBoard/TAAssignments';
 import DCourses from './pages/dashBoard/DCourses';
 import Assessment from './pages/assessment/Assessment';
 import ErrorPage from './pages/error/ErrorPage';
@@ -39,10 +46,17 @@ function App() {
           <Route path="/addquestions/:id" element={<AddQuestions />} />
           <Route path='/admin' element={<AdminDashboard />} />
           <Route path='/login' element={<Login />} />
+          <Route path='/admin-login' element={<AdminLogin />} />
           <Route path='/register' element={<Register />} />
           <Route path='/home' element={<HomeWrapper />} />
           <Route path='/teacher-home' element={<TeacherHome />} />
           <Route path='/teaching-assistant-home' element={<TeachingAssistantHome />} />
+          <Route path='/ta-comments' element={<TAComments />} />
+          <Route path='/ta-questions' element={<TAQuestions />} />
+          <Route path='/ta-progress' element={<TAProgress />} />
+          <Route path='/ta-reminders' element={<TAReminders />} />
+          <Route path='/ta-student-detail' element={<TAStudentDetail />} />
+          <Route path='/admin/ta-assignments' element={<TAAssignments />} />
           <Route path='/courses' element={<Courses />} />
           <Route path='/courses/:id' element={<CourseDetail />} />
           <Route path='/course/:id' element={<Course />} />

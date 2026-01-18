@@ -1,6 +1,7 @@
 package com.example.webdaylaptrinh.controller;
 
 import com.example.webdaylaptrinh.entity.User;
+import com.example.webdaylaptrinh.enums.UserRole;
 import com.example.webdaylaptrinh.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -30,12 +31,79 @@ public class UserController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody User user) {
+    public ResponseEntity<?> createUser(@RequestBody Map<String, Object> userData) {
         try {
+            User user = new User();
+            user.setUsername((String) userData.get("username"));
+            user.setEmail((String) userData.get("email"));
+            user.setPassword((String) userData.get("password"));
+            user.setMobileNumber((String) userData.get("mobileNumber"));
+            user.setDob((String) userData.get("dob"));
+            user.setGender((String) userData.get("gender"));
+            user.setLocation((String) userData.get("location"));
+            user.setProfession((String) userData.get("profession"));
+            user.setLinkedin_url((String) userData.get("linkedin_url"));
+            user.setGithub_url((String) userData.get("github_url"));
+            
+            // Handle role conversion from string to enum
+            Object roleObj = userData.get("role");
+            if (roleObj != null) {
+                String roleStr = roleObj.toString().trim();
+                try {
+                    // Try to match enum name (with or without ROLE_ prefix)
+                    UserRole role;
+                    if (roleStr.startsWith("ROLE_")) {
+                        // Remove ROLE_ prefix and convert to enum name
+                        String enumName = roleStr.substring(5); // Remove "ROLE_" prefix
+                        role = UserRole.valueOf(enumName);
+                    } else {
+                        // Direct enum name match
+                        role = UserRole.valueOf(roleStr);
+                    }
+                    user.setRole(role);
+                } catch (IllegalArgumentException e) {
+                    // If role string doesn't match enum, try to find by roleName
+                    try {
+                        // Try to find by roleName (e.g., "ROLE_TEACHING_ASSISTANT" -> TEACHING_ASSISTANT)
+                        for (UserRole r : UserRole.values()) {
+                            if (r.getRoleName().equals(roleStr)) {
+                                user.setRole(r);
+                                break;
+                            }
+                        }
+                        // If still not found, default to USER
+                        if (user.getRole() == null) {
+                            user.setRole(UserRole.USER);
+                        }
+                    } catch (Exception ex) {
+                        // Default to USER if all conversion fails
+                        user.setRole(UserRole.USER);
+                    }
+                }
+            } else {
+                user.setRole(UserRole.USER);
+            }
+            
+            // Handle isActive
+            Object isActiveObj = userData.get("isActive");
+            if (isActiveObj != null) {
+                if (isActiveObj instanceof Boolean) {
+                    user.setIsActive((Boolean) isActiveObj);
+                } else if (isActiveObj instanceof String) {
+                    user.setIsActive(Boolean.parseBoolean((String) isActiveObj));
+                } else {
+                    user.setIsActive(true);
+                }
+            } else {
+                user.setIsActive(true);
+            }
+            
             User createdUser = userService.createUser(user);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Failed to create user"));
         }
     }
 

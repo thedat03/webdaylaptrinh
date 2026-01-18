@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { message } from "antd";
 import Navbar from "../../Components/common/Navbar";
 import Footer from "../../Components/common/Footer";
@@ -18,6 +18,7 @@ import { faPlay, faStar, faStarHalfAlt, faClipboardList, faCode } from "@fortawe
 function CourseDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [course, setCourse] = useState(null);
     const [modules, setModules] = useState([]);
     const [lessonsByModule, setLessonsByModule] = useState({});
@@ -112,6 +113,33 @@ function CourseDetail() {
         };
         fetchData();
     }, [id]);
+
+    // Handle commentId parameter for navigation
+    useEffect(() => {
+        const urlParams = new URLSearchParams(location.search);
+        const commentId = urlParams.get("commentId");
+        if (commentId && !loading) {
+            // Wait for comments to load, then scroll
+            setTimeout(() => {
+                const commentElement = document.getElementById(`comment-${commentId}`);
+                if (commentElement) {
+                    commentElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                    commentElement.classList.add("ring-4", "ring-indigo-500", "ring-opacity-50", "rounded-lg");
+                    setTimeout(() => {
+                        commentElement.classList.remove("ring-4", "ring-indigo-500", "ring-opacity-50");
+                    }, 3000);
+                } else {
+                    // If comment not found, scroll to comments section
+                    const commentsSection = document.getElementById("comments-section");
+                    if (commentsSection) {
+                        commentsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                }
+                // Clean up URL
+                window.history.replaceState({}, "", `/course/${id}`);
+            }, 1000);
+        }
+    }, [location.search, id, loading]);
 
     useEffect(() => {
         const fetchRatings = async () => {
@@ -574,7 +602,7 @@ function CourseDetail() {
                     </section>
 
                     {/* Comment Section */}
-                    <section className="bg-white rounded-2xl shadow p-6 border border-gray-100">
+                    <section className="bg-white rounded-2xl shadow p-6 border border-gray-100" id="comments-section">
                         <CommentSection courseId={id} />
                     </section>
 

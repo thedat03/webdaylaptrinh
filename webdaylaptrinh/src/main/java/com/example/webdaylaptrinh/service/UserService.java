@@ -1,6 +1,7 @@
 package com.example.webdaylaptrinh.service;
 
 import com.example.webdaylaptrinh.entity.User;
+import com.example.webdaylaptrinh.enums.UserRole;
 import com.example.webdaylaptrinh.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,6 +29,12 @@ public class UserService {
 
 public User createUser(User user) {
     user.setPassword(passwordEncoder.encode(user.getPassword()));
+    
+    // Ensure role is set
+    if (user.getRole() == null) {
+        user.setRole(UserRole.USER); // Default role
+    }
+    
     return userRepository.save(user);
 }
 

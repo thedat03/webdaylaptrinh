@@ -40,6 +40,13 @@ public class LessonProgress {
     @Column(name = "last_accessed_at")
     private LocalDateTime lastAccessedAt;
 
+    // Video progress tracking
+    @Column(name = "watched_seconds")
+    private Integer watchedSeconds = 0; // Số giây đã xem video
+
+    @Column(name = "watched_percentage")
+    private Double watchedPercentage = 0.0; // Phần trăm đã xem (0-100)
+
     @PrePersist
     protected void onCreate() {
         if (lastAccessedAt == null) {
@@ -47,6 +54,12 @@ public class LessonProgress {
         }
         if (isCompleted && completedAt == null) {
             completedAt = LocalDateTime.now();
+        }
+        if (watchedSeconds == null) {
+            watchedSeconds = 0;
+        }
+        if (watchedPercentage == null) {
+            watchedPercentage = 0.0;
         }
     }
 

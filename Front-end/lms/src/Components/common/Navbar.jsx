@@ -17,7 +17,8 @@ function Navbar() {
     const [isAuthenticated, setIsAuthenticated] = useState(
         authService.isUserAuthenticated() ||
         authService.isInstructorAuthenticated() ||
-        authService.isAdminAuthenticated()
+        authService.isAdminAuthenticated() ||
+        authService.isTeachingAssistantAuthenticated()
     );
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -37,7 +38,8 @@ function Navbar() {
             setIsAuthenticated(
                 authService.isUserAuthenticated() ||
                 authService.isInstructorAuthenticated() ||
-                authService.isAdminAuthenticated()
+                authService.isAdminAuthenticated() ||
+                authService.isTeachingAssistantAuthenticated()
             );
         };
         checkAuth();

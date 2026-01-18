@@ -86,7 +86,13 @@ export default function Notifications() {
         }
 
         // Navigate based on notification type
-        if (notification.relatedType === "COURSE" && notification.relatedId) {
+        if (notification.type === "TA_REMINDER" && notification.relatedId) {
+            // Navigate to chat page - TA will appear in conversations because message was already sent
+            navigate("/chat");
+        } else if (notification.type === "TA_REMINDER_CONFIRMATION" && notification.relatedId) {
+            // Navigate to reminders page for TA
+            navigate("/ta-reminders");
+        } else if (notification.relatedType === "COURSE" && notification.relatedId) {
             navigate(`/courses/${notification.relatedId}`);
         } else if (notification.relatedType === "PAYMENT") {
             navigate("/profile");
@@ -126,6 +132,10 @@ export default function Notifications() {
                 return "🎉";
             case "COMPETITION":
                 return "🏆";
+            case "TA_REMINDER":
+                return "📬";
+            case "TA_REMINDER_CONFIRMATION":
+                return "✅";
             default:
                 return "🔔";
         }

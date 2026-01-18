@@ -7,6 +7,7 @@ function SideBar({ current, onSelect, onLogout }) {
         { key: "dashboard", label: "Tổng quan", icon: "bx bxs-dashboard" },
         { key: "user", label: "Người dùng", icon: "bx bxs-group" },
         { key: "courses", label: "Duyệt khóa học", icon: "bx bxs-book" },
+        { key: "ta-assignments", label: "Phân công Trợ giảng", icon: "bx bxs-user-badge" },
         { key: "categories", label: "Danh mục", icon: "bx bxs-category" },
         { key: "banners", label: "Banner", icon: "bx bxs-image" },
         { key: "news", label: "Tin tức", icon: "bx bxs-news" },

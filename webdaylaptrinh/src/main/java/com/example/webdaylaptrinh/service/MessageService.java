@@ -110,8 +110,9 @@ public class MessageService {
 
     /**
      * Kiểm tra quyền chat dựa trên role
-     * - STUDENT/USER có thể chat với INSTRUCTOR và ADMIN
+     * - STUDENT/USER có thể chat với INSTRUCTOR, TEACHING_ASSISTANT và ADMIN
      * - INSTRUCTOR có thể chat với STUDENT/USER và ADMIN
+     * - TEACHING_ASSISTANT có thể chat với STUDENT/USER và ADMIN
      * - ADMIN có thể chat với tất cả
      */
     private void validateChatPermission(User sender, User receiver) {
@@ -123,10 +124,10 @@ public class MessageService {
             return;
         }
 
-        // STUDENT/USER chỉ có thể chat với INSTRUCTOR hoặc ADMIN
+        // STUDENT/USER chỉ có thể chat với INSTRUCTOR, TEACHING_ASSISTANT hoặc ADMIN
         if (senderRole == UserRole.STUDENT || senderRole == UserRole.USER) {
-            if (receiverRole != UserRole.INSTRUCTOR && receiverRole != UserRole.ADMIN) {
-                throw new RuntimeException("Học viên chỉ có thể chat với giáo viên hoặc admin");
+            if (receiverRole != UserRole.INSTRUCTOR && receiverRole != UserRole.TEACHING_ASSISTANT && receiverRole != UserRole.ADMIN) {
+                throw new RuntimeException("Học viên chỉ có thể chat với giáo viên, trợ giảng hoặc admin");
             }
         }
 
@@ -134,6 +135,13 @@ public class MessageService {
         if (senderRole == UserRole.INSTRUCTOR) {
             if (receiverRole != UserRole.STUDENT && receiverRole != UserRole.USER && receiverRole != UserRole.ADMIN) {
                 throw new RuntimeException("Giáo viên chỉ có thể chat với học viên hoặc admin");
+            }
+        }
+
+        // TEACHING_ASSISTANT có thể chat với STUDENT/USER hoặc ADMIN
+        if (senderRole == UserRole.TEACHING_ASSISTANT) {
+            if (receiverRole != UserRole.STUDENT && receiverRole != UserRole.USER && receiverRole != UserRole.ADMIN) {
+                throw new RuntimeException("Trợ giảng chỉ có thể chat với học viên hoặc admin");
             }
         }
     }
@@ -159,13 +167,18 @@ public class MessageService {
                         return true;
                     }
                     
-                    // STUDENT chỉ thấy INSTRUCTOR và ADMIN
+                    // STUDENT chỉ thấy INSTRUCTOR, TEACHING_ASSISTANT và ADMIN
                     if (currentRole == UserRole.STUDENT || currentRole == UserRole.USER) {
-                        return userRole == UserRole.INSTRUCTOR || userRole == UserRole.ADMIN;
+                        return userRole == UserRole.INSTRUCTOR || userRole == UserRole.TEACHING_ASSISTANT || userRole == UserRole.ADMIN;
                     }
                     
                     // INSTRUCTOR chỉ thấy STUDENT và ADMIN
                     if (currentRole == UserRole.INSTRUCTOR) {
+                        return userRole == UserRole.STUDENT || userRole == UserRole.USER || userRole == UserRole.ADMIN;
+                    }
+                    
+                    // TEACHING_ASSISTANT chỉ thấy STUDENT và ADMIN
+                    if (currentRole == UserRole.TEACHING_ASSISTANT) {
                         return userRole == UserRole.STUDENT || userRole == UserRole.USER || userRole == UserRole.ADMIN;
                     }
                     

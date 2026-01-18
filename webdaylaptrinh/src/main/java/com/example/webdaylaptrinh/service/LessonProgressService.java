@@ -44,30 +44,64 @@ public class LessonProgressService {
         Optional<LessonProgress> existingProgress = lessonProgressRepository.findByUserAndLesson(user, lesson);
         
         LessonProgress lessonProgress;
+        boolean wasCompleted = false;
+        
         if (existingProgress.isPresent()) {
             lessonProgress = existingProgress.get();
-            if (!lessonProgress.getIsCompleted()) {
-                lessonProgress.setIsCompleted(true);
-                lessonProgress.setCompletedAt(LocalDateTime.now());
-                lessonProgressRepository.save(lessonProgress);
-                
-                // Cập nhật tiến độ khóa học
-                updateCourseProgress(userId, lesson);
+            wasCompleted = lessonProgress.getIsCompleted();
+            
+            // Cập nhật watchedSeconds và watchedPercentage nếu có
+            if (request.getWatchedSeconds() != null) {
+                lessonProgress.setWatchedSeconds(request.getWatchedSeconds());
             }
+            if (request.getWatchedPercentage() != null) {
+                lessonProgress.setWatchedPercentage(request.getWatchedPercentage());
+            }
+            
+            lessonProgress.setLastAccessedAt(LocalDateTime.now());
         } else {
             lessonProgress = new LessonProgress();
             lessonProgress.setUser(user);
             lessonProgress.setLesson(lesson);
+            lessonProgress.setIsCompleted(false);
+            lessonProgress.setLastAccessedAt(LocalDateTime.now());
+            
+            if (request.getWatchedSeconds() != null) {
+                lessonProgress.setWatchedSeconds(request.getWatchedSeconds());
+            }
+            if (request.getWatchedPercentage() != null) {
+                lessonProgress.setWatchedPercentage(request.getWatchedPercentage());
+            }
+        }
+
+        // Chỉ đánh dấu hoàn thành nếu:
+        // 1. Video lesson: watchedPercentage >= 50%
+        // 2. Non-video lesson: có thể đánh dấu trực tiếp
+        boolean shouldComplete = false;
+        if (request.getIsCompleted() != null && request.getIsCompleted()) {
+            if (lesson.getType() != null && lesson.getType().name().contains("VIDEO")) {
+                // Video lesson: cần xem >= 50%
+                double watchedPct = lessonProgress.getWatchedPercentage() != null ? 
+                    lessonProgress.getWatchedPercentage() : 0.0;
+                shouldComplete = watchedPct >= 50.0;
+            } else {
+                // Non-video lesson: có thể đánh dấu trực tiếp
+                shouldComplete = true;
+            }
+        }
+
+        if (shouldComplete && !wasCompleted) {
             lessonProgress.setIsCompleted(true);
             lessonProgress.setCompletedAt(LocalDateTime.now());
-            lessonProgress.setLastAccessedAt(LocalDateTime.now());
             lessonProgressRepository.save(lessonProgress);
             
             // Cập nhật tiến độ khóa học
             updateCourseProgress(userId, lesson);
+            return ResponseEntity.ok("Lesson marked as completed");
+        } else {
+            lessonProgressRepository.save(lessonProgress);
+            return ResponseEntity.ok("Lesson progress updated");
         }
-
-        return ResponseEntity.ok("Lesson marked as completed");
     }
 
     public ResponseEntity<String> updateLessonAccess(LessonProgressRequest request) {
@@ -90,12 +124,44 @@ public class LessonProgressService {
         if (existingProgress.isPresent()) {
             lessonProgress = existingProgress.get();
             lessonProgress.setLastAccessedAt(LocalDateTime.now());
+            
+            // Cập nhật watchedSeconds và watchedPercentage nếu có
+            if (request.getWatchedSeconds() != null) {
+                lessonProgress.setWatchedSeconds(request.getWatchedSeconds());
+            }
+            if (request.getWatchedPercentage() != null) {
+                lessonProgress.setWatchedPercentage(request.getWatchedPercentage());
+                
+                // Tự động đánh dấu hoàn thành nếu video lesson và đã xem >= 50%
+                if (lesson.getType() != null && lesson.getType().name().contains("VIDEO")) {
+                    if (request.getWatchedPercentage() >= 50.0 && !lessonProgress.getIsCompleted()) {
+                        lessonProgress.setIsCompleted(true);
+                        lessonProgress.setCompletedAt(LocalDateTime.now());
+                        updateCourseProgress(userId, lesson);
+                    }
+                }
+            }
         } else {
             lessonProgress = new LessonProgress();
             lessonProgress.setUser(user);
             lessonProgress.setLesson(lesson);
             lessonProgress.setIsCompleted(false);
             lessonProgress.setLastAccessedAt(LocalDateTime.now());
+            
+            if (request.getWatchedSeconds() != null) {
+                lessonProgress.setWatchedSeconds(request.getWatchedSeconds());
+            }
+            if (request.getWatchedPercentage() != null) {
+                lessonProgress.setWatchedPercentage(request.getWatchedPercentage());
+                
+                // Tự động đánh dấu hoàn thành nếu video lesson và đã xem >= 50%
+                if (lesson.getType() != null && lesson.getType().name().contains("VIDEO")) {
+                    if (request.getWatchedPercentage() >= 50.0) {
+                        lessonProgress.setIsCompleted(true);
+                        lessonProgress.setCompletedAt(LocalDateTime.now());
+                    }
+                }
+            }
         }
         lessonProgressRepository.save(lessonProgress);
 

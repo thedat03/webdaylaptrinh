@@ -31,4 +31,14 @@ public class Learning {
     @JsonIgnore
     @JoinColumn(name = "course_id")
     private Course course;
+
+    @Column(name = "enrolled_at")
+    private java.time.LocalDateTime enrolledAt; // Ngày đăng ký khóa học
+
+    @PrePersist
+    protected void onCreate() {
+        if (enrolledAt == null) {
+            enrolledAt = java.time.LocalDateTime.now();
+        }
+    }
 }

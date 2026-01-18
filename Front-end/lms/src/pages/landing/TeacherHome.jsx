@@ -181,10 +181,25 @@ function TeacherHome() {
     };
 
     useEffect(() => {
-        if (!authService.isInstructorAuthenticated()) {
-            navigate("/home");
+        // Kiểm tra authentication với delay nhỏ để đảm bảo localStorage đã được set sau login
+        const checkAuth = () => {
+            const token = localStorage.getItem("token");
+            const role = localStorage.getItem("role");
+            
+            // Chỉ redirect nếu không có token hoặc role không phải INSTRUCTOR
+            if (!token || role !== "ROLE_INSTRUCTOR") {
+                console.warn("Teacher authentication check failed - token:", !!token, "role:", role);
+                navigate("/home");
+                return false;
+            }
+            return true;
+        };
+
+        // Kiểm tra ngay lập tức, nhưng chỉ redirect nếu chắc chắn không authenticated
+        if (!checkAuth()) {
             return;
         }
+
         if (tab === "overview") {
             loadTeacherData();
             loadBanners();
@@ -192,7 +207,7 @@ function TeacherHome() {
             loadNews();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tab]);
+    }, [tab, navigate]);
 
     // Auto-rotate banners
     useEffect(() => {
@@ -264,8 +279,8 @@ function TeacherHome() {
             const currentUser = authService.getCurrentUser();
             const currentUserId = currentUser?.id || "";
 
-            // Load all courses (admin scope, bao gồm cả PENDING) sau đó lọc theo id giáo viên hiện tại
-            const result = await adminService.getAllCourses(true);
+            // Load all courses (public endpoint) sau đó lọc theo id giáo viên hiện tại
+            const result = await courseService.getAllCourses();
             if (result.success && result.data) {
                 let coursesData = result.data;
 
