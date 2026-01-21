@@ -3,6 +3,7 @@ package com.example.webdaylaptrinh.repository;
 import com.example.webdaylaptrinh.entity.DirectQuestion;
 import com.example.webdaylaptrinh.entity.DirectQuestion.DirectQuestionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -32,4 +33,8 @@ public interface DirectQuestionRepository extends JpaRepository<DirectQuestion, 
     // Lấy câu hỏi theo bài học
     @Query("SELECT dq FROM DirectQuestion dq WHERE dq.lesson.lesson_id = :lessonId ORDER BY dq.createdAt DESC")
     List<DirectQuestion> findByLessonId(@Param("lessonId") UUID lessonId);
+    
+    @Modifying
+    @Query("UPDATE DirectQuestion dq SET dq.lesson = NULL WHERE dq.lesson.lesson_id = :lessonId")
+    void setLessonNullByLessonId(@Param("lessonId") UUID lessonId);
 }

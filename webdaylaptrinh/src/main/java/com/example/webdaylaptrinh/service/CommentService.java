@@ -1,5 +1,6 @@
 package com.example.webdaylaptrinh.service;
 
+import com.example.webdaylaptrinh.dto.CommentWithStatusDTO;
 import com.example.webdaylaptrinh.entity.Comment;
 import com.example.webdaylaptrinh.entity.CodeExercise;
 import com.example.webdaylaptrinh.entity.Course;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -32,6 +34,7 @@ public class CommentService {
     private final UserRepository userRepository;
     private final TACourseAssignmentRepository taCourseAssignmentRepository;
     private final NotificationService notificationService;
+    private final UserService userService;
 
     // Lấy tất cả comment đã duyệt của một lesson (chỉ comment gốc)
     public List<Comment> getApprovedCommentsByLesson(UUID lessonId) {
@@ -571,6 +574,29 @@ public class CommentService {
                 })
                 .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt())) // Sắp xếp mới nhất trước
                 .toList();
+    }
+
+    /**
+     * Convert List<Comment> to List<CommentWithStatusDTO> với online status
+     */
+    public List<CommentWithStatusDTO> convertCommentsToDTO(List<Comment> comments) {
+        return comments.stream()
+                .map(comment -> {
+                    User user = comment.getUser();
+                    boolean isUserOnline = false;
+                    Long offlineMinutes = null;
+                    
+                    if (user != null) {
+                        isUserOnline = userService.isUserOnline(user);
+                        if (!isUserOnline && user.getLastActiveAt() != null) {
+                            LocalDateTime now = LocalDateTime.now();
+                            offlineMinutes = java.time.Duration.between(user.getLastActiveAt(), now).toMinutes();
+                        }
+                    }
+                    
+                    return CommentWithStatusDTO.fromComment(comment, isUserOnline, offlineMinutes);
+                })
+                .collect(Collectors.toList());
     }
 }
 

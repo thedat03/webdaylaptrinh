@@ -165,6 +165,33 @@ public class DirectQuestionController {
         }
     }
 
+    // Học viên đánh dấu câu hỏi đã giải quyết và đánh giá
+    @PostMapping("/{questionId}/mark-resolved")
+    @PreAuthorize("hasAnyRole('USER', 'STUDENT', 'TEACHING_ASSISTANT')")
+    public ResponseEntity<?> markAsResolved(@PathVariable UUID questionId, @RequestBody Map<String, Object> request, Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID studentId = getUserIdFromEmail(email);
+
+            Integer rating = null;
+            if (request.get("rating") != null) {
+                try {
+                    rating = Integer.parseInt(request.get("rating").toString());
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .body(Map.of("error", "Invalid rating format"));
+                }
+            }
+
+            DirectQuestion question = directQuestionService.markAsResolved(questionId, studentId, rating);
+            return ResponseEntity.ok(question);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
     private UUID getUserIdFromEmail(String email) {
         com.example.webdaylaptrinh.entity.User user = userRepository.findByEmail(email);
         if (user == null) {

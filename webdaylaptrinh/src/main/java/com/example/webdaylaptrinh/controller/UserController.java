@@ -8,6 +8,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import com.example.webdaylaptrinh.security.UserPrincipal;
+import com.example.webdaylaptrinh.dto.ApiResponse;
 
 import org.springframework.web.multipart.MultipartFile;
 
@@ -147,5 +150,21 @@ public class UserController {
     @GetMapping("/details")
     public User getUserByEmail(@RequestParam String email) {
         return userService.getUserByEmail(email);
+    }
+
+    /**
+     * Heartbeat endpoint để cập nhật lastActiveAt khi user đang active
+     */
+    @PostMapping("/heartbeat")
+    public ResponseEntity<ApiResponse<Void>> updateHeartbeat(Authentication authentication) {
+        try {
+            UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+            UUID userId = userPrincipal.getId();
+            userService.updateLastActiveAt(userId);
+            return ResponseEntity.ok(new ApiResponse<>("Heartbeat updated", null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>("Lỗi khi cập nhật heartbeat", null));
+        }
     }
 }

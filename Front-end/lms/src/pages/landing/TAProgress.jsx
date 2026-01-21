@@ -161,60 +161,29 @@ function TAProgress() {
     };
 
     const getStatusTag = (student) => {
-        const progress = student.progressPercentage || 0;
-        const lastActivity = student.lastActivity;
         const progressStatus = student.progressStatus;
-        const gap = student.gap || 0;
+        const daysInactive = student.daysInactive;
         
-        // Nếu có progressStatus từ backend, dùng nó
+        // Sử dụng progressStatus từ backend
         if (progressStatus) {
             switch (progressStatus) {
                 case "CHUA_BAT_DAU":
-                    return <Tag color="red" icon={<FontAwesomeIcon icon={faExclamationCircle} />}>Chưa bắt đầu</Tag>;
-                case "TOT":
-                    return <Tag color="green" icon={<FontAwesomeIcon icon={faCheckCircle} />}>Tiến độ tốt</Tag>;
-                case "ON":
-                    return <Tag color="cyan">Tiến độ ổn</Tag>;
-                case "THAP":
-                    return <Tag color="orange" icon={<FontAwesomeIcon icon={faChartLine} />}>Tiến độ thấp</Tag>;
-                case "NGUY_CO_BO_HOC":
-                    return <Tag color="red" icon={<FontAwesomeIcon icon={faExclamationCircle} />}>Nguy cơ bỏ học</Tag>;
+                    return <Tag color="gray" icon={<FontAwesomeIcon icon={faExclamationCircle} />}>Chưa bắt đầu</Tag>;
                 case "DANG_HOC":
-                    return <Tag color="blue">Đang học</Tag>;
+                    return <Tag color="blue" icon={<FontAwesomeIcon icon={faCheckCircle} />}>Đang học</Tag>;
+                case "DA_NGHI":
+                    return (
+                        <Tag color="orange" icon={<FontAwesomeIcon icon={faExclamationCircle} />}>
+                            Đã nghỉ {daysInactive ? `${daysInactive} ngày` : ''}
+                        </Tag>
+                    );
                 default:
-                    break;
+                    return <Tag color="blue">Đang học</Tag>;
             }
         }
         
-        // Fallback logic cũ nếu không có progressStatus
-        if (progress >= 100) {
-            return <Tag color="green" icon={<FontAwesomeIcon icon={faCheckCircle} />}>Hoàn thành</Tag>;
-        }
-        
-        if (!lastActivity) {
-            return <Tag color="red" icon={<FontAwesomeIcon icon={faExclamationCircle} />}>Chưa bắt đầu</Tag>;
-        }
-        
-        const now = new Date();
-        const lastAct = new Date(lastActivity);
-        const daysDiff = Math.floor((now - lastAct) / (1000 * 60 * 60 * 24));
-        
-        if (daysDiff >= daysInactive) {
-            return <Tag color="orange" icon={<FontAwesomeIcon icon={faClock} />}>Không hoạt động</Tag>;
-        }
-        
-        // Đánh giá dựa trên gap nếu có
-        if (gap !== undefined && gap !== null) {
-            if (gap >= 10) {
-                return <Tag color="green" icon={<FontAwesomeIcon icon={faCheckCircle} />}>Tiến độ tốt</Tag>;
-            } else if (gap >= -10) {
-                return <Tag color="cyan">Tiến độ ổn</Tag>;
-            } else {
-                return <Tag color="orange" icon={<FontAwesomeIcon icon={faChartLine} />}>Tiến độ thấp</Tag>;
-            }
-        }
-        
-        return <Tag color="cyan">Đang học</Tag>;
+        // Fallback nếu không có progressStatus
+        return <Tag color="blue">Đang học</Tag>;
     };
 
     const columns = [
@@ -244,8 +213,6 @@ function TAProgress() {
             width: 250,
             render: (_, record) => {
                 const progress = Math.round(record.progressPercentage || 0);
-                const expected = record.expectedProgress ? Math.round(record.expectedProgress) : null;
-                const gap = record.gap ? Math.round(record.gap * 10) / 10 : null;
                 
                 return (
                     <div>
@@ -259,15 +226,6 @@ function TAProgress() {
                             <FontAwesomeIcon icon={faGraduationCap} className="text-indigo-500" />
                             <span>{record.completedLessons || 0}/{record.totalLessons || 0} bài học</span>
                         </div>
-                        {expected !== null && (
-                            <div className="text-xs text-gray-500 mt-1">
-                                Kỳ vọng: {expected}% {gap !== null && (
-                                    <span className={gap >= 0 ? "text-green-600" : "text-orange-600"}>
-                                        ({gap >= 0 ? "+" : ""}{gap}%)
-                                    </span>
-                                )}
-                            </div>
-                        )}
                     </div>
                 );
             },

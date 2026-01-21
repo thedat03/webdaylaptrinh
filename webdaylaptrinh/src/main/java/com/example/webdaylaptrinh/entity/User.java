@@ -75,10 +75,14 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "last_active_at")
+    private LocalDateTime lastActiveAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        lastActiveAt = LocalDateTime.now();
     }
 
     @PreUpdate

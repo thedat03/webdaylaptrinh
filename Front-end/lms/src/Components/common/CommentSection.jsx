@@ -14,6 +14,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { commentService } from "../../api/comment.service";
 import { authService } from "../../api/auth.service";
+import { messageService } from "../../api/message.service";
 import { message } from "antd";
 
 function CommentSection({ lessonId, courseId, exerciseId, enableRating = true }) {
@@ -47,8 +48,17 @@ function CommentSection({ lessonId, courseId, exerciseId, enableRating = true })
         if (lessonId || courseId || exerciseId) {
             loadComments();
         }
+        // Gửi heartbeat khi user tương tác với comments
+        if (currentUser?.id) {
+            messageService.sendHeartbeat();
+            // Gửi heartbeat mỗi 30 giây
+            const heartbeatInterval = setInterval(() => {
+                messageService.sendHeartbeat();
+            }, 30000);
+            return () => clearInterval(heartbeatInterval);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [lessonId, courseId, exerciseId]);
+    }, [lessonId, courseId, exerciseId, currentUser?.id]);
 
     useEffect(() => {
         setVisibleCount(INITIAL_VISIBLE_COUNT);
@@ -549,6 +559,15 @@ function CommentSection({ lessonId, courseId, exerciseId, enableRating = true })
         return date.toLocaleDateString("vi-VN", { day: "numeric", month: "numeric", year: "numeric" });
     };
 
+    const formatOfflineTime = (offlineMinutes) => {
+        if (!offlineMinutes) return "";
+        if (offlineMinutes < 60) return `Đã offline ${offlineMinutes} phút`;
+        const hours = Math.floor(offlineMinutes / 60);
+        if (hours < 24) return `Đã offline ${hours} giờ`;
+        const days = Math.floor(hours / 24);
+        return `Đã offline ${days} ngày`;
+    };
+
     const getUserRoleBadge = (role) => {
         const roleName = role?.replace("ROLE_", "") || "";
         const badgeStyles = {
@@ -624,10 +643,17 @@ function CommentSection({ lessonId, courseId, exerciseId, enableRating = true })
                                 </span>
                             )}
                         </div>
-                        {comment.isApproved && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center ring-2 ring-white">
-                                <FontAwesomeIcon icon={faCheckCircle} className="text-white text-[8px]" />
-                            </div>
+                        {/* Online/Offline indicator - góc phải bên dưới */}
+                        {comment.user?.isOnline !== undefined && (
+                            <span 
+                                className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                                    comment.user.isOnline ? "bg-green-500" : "bg-gray-400"
+                                }`}
+                                style={{ 
+                                    bottom: '2px', 
+                                    right: '2px' 
+                                }}
+                            ></span>
                         )}
                     </div>
 
@@ -642,6 +668,11 @@ function CommentSection({ lessonId, courseId, exerciseId, enableRating = true })
                             <span className="text-xs text-gray-400">
                                 {formatTimeAgo(comment.createdAt)}
                             </span>
+                            {comment.user?.isOnline === false && comment.user?.offlineMinutes && (
+                                <span className="text-xs text-gray-400">
+                                    • {formatOfflineTime(comment.user.offlineMinutes)}
+                                </span>
+                            )}
 
                             {/* Rating stars - top right for first comment only */}
                             {enableRating && comment.rating && depth === 0 && (

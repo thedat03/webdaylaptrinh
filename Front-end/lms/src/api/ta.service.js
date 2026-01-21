@@ -143,6 +143,16 @@ async function getStudentProgress(courseId, studentId) {
     }
 }
 
+async function getStudentActivityDetails(courseId, studentId) {
+    try {
+        const { data } = await api.get(`/api/ta-progress/course/${courseId}/student/${studentId}/activities`);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error getting student activity details:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to get student activity details" };
+    }
+}
+
 async function getStudentsNeedingReminder(courseId, daysInactive = 7) {
     try {
         const { data } = await api.get(`/api/ta-progress/course/${courseId}/students-needing-reminder`, {
@@ -204,6 +214,45 @@ async function getStudentsInCourse(courseId) {
     }
 }
 
+// Student: Create direct question
+async function createDirectQuestion(content, courseId, lessonId) {
+    try {
+        const { data } = await api.post("/api/direct-questions", {
+            content,
+            courseId,
+            lessonId
+        });
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error creating direct question:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to create question" };
+    }
+}
+
+// Student: Get my questions
+async function getMyQuestions() {
+    try {
+        const { data } = await api.get("/api/direct-questions/my-questions");
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error getting my questions:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to get questions" };
+    }
+}
+
+// Student: Mark question as resolved with rating
+async function markAsResolved(questionId, rating) {
+    try {
+        const { data } = await api.post(`/api/direct-questions/${questionId}/mark-resolved`, {
+            rating
+        });
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error marking as resolved:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to mark as resolved" };
+    }
+}
+
 export const taService = {
     // Direct Questions
     getMyAssignedQuestions,
@@ -225,6 +274,7 @@ export const taService = {
     getStudentsProgress,
     getStudentProgress,
     getStudentsNeedingReminder,
+    getStudentActivityDetails,
     
     // Reminders
     sendReminder,
@@ -234,5 +284,10 @@ export const taService = {
     getAssignedCourses,
     
     // Students
-    getStudentsInCourse
+    getStudentsInCourse,
+    
+    // Direct Questions - Student
+    createDirectQuestion,
+    getMyQuestions,
+    markAsResolved
 };

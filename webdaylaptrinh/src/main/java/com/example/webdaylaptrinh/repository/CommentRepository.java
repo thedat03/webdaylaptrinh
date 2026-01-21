@@ -76,5 +76,9 @@ public interface CommentRepository extends JpaRepository<Comment, UUID> {
     // Lấy tất cả comment của một exercise (cho admin)
     @Query("SELECT c FROM Comment c WHERE c.exercise.exercise_id = :exerciseId AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
     List<Comment> findByExercise_ExerciseIdAndParentCommentIsNullOrderByCreatedAtDesc(@Param("exerciseId") UUID exerciseId);
+    
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM Comment c WHERE c.lesson.lesson_id = :lessonId")
+    void deleteByLessonId(@Param("lessonId") UUID lessonId);
 }
 

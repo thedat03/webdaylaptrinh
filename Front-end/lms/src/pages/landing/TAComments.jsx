@@ -23,6 +23,7 @@ import {
 import { authService } from "../../api/auth.service";
 import { taService } from "../../api/ta.service";
 import { commentService } from "../../api/comment.service";
+import { messageService } from "../../api/message.service";
 import { message, Input, Button, Select, Card, Tag, Space, Empty, Spin, Pagination, Popconfirm, Tooltip, Avatar } from "antd";
 const { TextArea } = Input;
 
@@ -57,6 +58,26 @@ function TAComments() {
         }
         loadComments();
         loadCourses();
+
+        // Gửi heartbeat khi user tương tác với comments
+        const currentUser = authService.getCurrentUser();
+        if (currentUser?.id) {
+            messageService.sendHeartbeat();
+            // Gửi heartbeat mỗi 30 giây
+            const heartbeatInterval = setInterval(() => {
+                messageService.sendHeartbeat();
+            }, 30000);
+            
+            // Refresh comments để cập nhật online status mỗi 10 giây
+            const refreshInterval = setInterval(() => {
+                loadComments();
+            }, 10000);
+            
+            return () => {
+                clearInterval(heartbeatInterval);
+                clearInterval(refreshInterval);
+            };
+        }
 
         // Check for commentId in URL params (from notification click)
         const urlParams = new URLSearchParams(window.location.search);
@@ -232,6 +253,7 @@ function TAComments() {
             const res = await taService.getAllComments();
             if (res.success) {
                 if (Array.isArray(res.data)) {
+                    console.log("Loaded TA comments with online status:", res.data);
                     // Không tự động load replies, chỉ load khi user click "Xem thêm"
                     setComments(res.data.map(comment => ({ ...comment, replies: [] })));
 
@@ -606,6 +628,15 @@ function TAComments() {
         return `${diffDays} ngày trước`;
     };
 
+    const formatOfflineTime = (offlineMinutes) => {
+        if (!offlineMinutes) return "";
+        if (offlineMinutes < 60) return `Đã offline ${offlineMinutes} phút`;
+        const hours = Math.floor(offlineMinutes / 60);
+        if (hours < 24) return `Đã offline ${hours} giờ`;
+        const days = Math.floor(hours / 24);
+        return `Đã offline ${days} ngày`;
+    };
+
     const getInitials = (name) => {
         if (!name) return "U";
         const parts = name.split(" ");
@@ -960,6 +991,18 @@ function TAComments() {
                                                                 </div>
                                                             )}
                                                         </div>
+                                                        {/* Online/Offline indicator - góc phải bên dưới */}
+                                                        {comment.user && (
+                                                            <span 
+                                                                className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                                                                    comment.user.isOnline === true ? "bg-green-500" : "bg-gray-400"
+                                                                }`}
+                                                                style={{ 
+                                                                    bottom: '2px', 
+                                                                    right: '2px' 
+                                                                }}
+                                                            ></span>
+                                                        )}
                                                     </div>
 
                                                     {/* Content */}
@@ -973,6 +1016,11 @@ function TAComments() {
                                                             <span className="text-xs text-gray-400">
                                                                 {formatTimeAgo(comment.createdAt)}
                                                             </span>
+                                                            {comment.user?.isOnline === false && comment.user?.offlineMinutes && (
+                                                                <span className="text-xs text-gray-400">
+                                                                    • {formatOfflineTime(comment.user.offlineMinutes)}
+                                                                </span>
+                                                            )}
                                                             {comment.isAnswered === true && (
                                                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-500 text-white">
                                                                     Đã trả lời
@@ -1217,6 +1265,18 @@ function TAComments() {
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
+                                                                                {/* Online/Offline indicator - góc phải bên dưới */}
+                                                                                {reply.user && (
+                                                                                    <span 
+                                                                                        className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                                                                                            reply.user.isOnline === true ? "bg-green-500" : "bg-gray-400"
+                                                                                        }`}
+                                                                                        style={{ 
+                                                                                            bottom: '2px', 
+                                                                                            right: '2px' 
+                                                                                        }}
+                                                                                    ></span>
+                                                                                )}
                                                                             </div>
                                                                             <div className="flex-1 min-w-0">
                                                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -1227,6 +1287,11 @@ function TAComments() {
                                                                                     {reply.createdAt && (
                                                                                         <span className="text-xs text-gray-400">
                                                                                             {formatTimeAgo(reply.createdAt)}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {reply.user?.isOnline === false && reply.user?.offlineMinutes && (
+                                                                                        <span className="text-xs text-gray-400">
+                                                                                            • {formatOfflineTime(reply.user.offlineMinutes)}
                                                                                         </span>
                                                                                     )}
                                                                                 </div>

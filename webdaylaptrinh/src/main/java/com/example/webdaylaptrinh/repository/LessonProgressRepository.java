@@ -4,6 +4,7 @@ import com.example.webdaylaptrinh.entity.Lesson;
 import com.example.webdaylaptrinh.entity.LessonProgress;
 import com.example.webdaylaptrinh.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,5 +27,9 @@ public interface LessonProgressRepository extends JpaRepository<LessonProgress, 
     
     @Query("SELECT COUNT(lp) FROM LessonProgress lp WHERE lp.user.id = :userId AND lp.lesson.module.course.course_id = :courseId AND lp.isCompleted = true")
     long countCompletedLessonsByUserIdAndCourseId(@Param("userId") UUID userId, @Param("courseId") UUID courseId);
+    
+    @Modifying
+    @Query("DELETE FROM LessonProgress lp WHERE lp.lesson.lesson_id = :lessonId")
+    void deleteByLessonId(@Param("lessonId") UUID lessonId);
 }
 

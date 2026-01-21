@@ -127,6 +127,27 @@ public class TAProgressController {
         }
     }
 
+    // Lấy chi tiết hoạt động của học viên (video watch time, bài học đã hoàn thành, bài tập)
+    @GetMapping("/course/{courseId}/student/{studentId}/activities")
+    @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
+    public ResponseEntity<?> getStudentActivityDetails(
+            @PathVariable UUID courseId, 
+            @PathVariable UUID studentId, 
+            Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID taId = getUserIdFromEmail(email);
+
+            TAProgressService.StudentActivityDetailDTO activities = progressService.getStudentActivityDetails(taId, studentId, courseId);
+            return ResponseEntity.ok(activities);
+        } catch (Exception e) {
+            Map<String, Object> errorMap = new HashMap<>();
+            errorMap.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorMap);
+        }
+    }
+
     private UUID getUserIdFromEmail(String email) {
         com.example.webdaylaptrinh.entity.User user = userRepository.findByEmail(email);
         if (user == null) {

@@ -1,47 +1,35 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { message } from "antd";
 import Navbar from "../../Components/common/Navbar";
-import Footer from "../../Components/common/Footer";
+import { authService } from "../../api/auth.service";
+import { taService } from "../../api/ta.service";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
     faQuestionCircle, 
     faArrowLeft, 
     faCheckCircle, 
-    faBookOpen, 
-    faClock, 
+    faClock,
     faUser,
     faSearch,
-    faSort,
     faHandPaper,
     faReply,
     faGraduationCap,
-    faExclamationCircle
+    faBookOpen,
+    faExclamationCircle,
+    faStar
 } from "@fortawesome/free-solid-svg-icons";
-import { authService } from "../../api/auth.service";
-import { taService } from "../../api/ta.service";
-import { courseService } from "../../api/course.service";
-import { message, Input, Button, Tabs, Card, Tag, Space, Empty, Spin, Badge, Pagination } from "antd";
-const { TextArea } = Input;
-const { Search } = Input;
 
 function TAQuestions() {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
+    const messagesEndRef = useRef(null);
+    const [loading, setLoading] = useState(false);
     const [pendingQuestions, setPendingQuestions] = useState([]);
     const [assignedQuestions, setAssignedQuestions] = useState([]);
-    const [filteredPending, setFilteredPending] = useState([]);
-    const [filteredAssigned, setFilteredAssigned] = useState([]);
-    const [activeTab, setActiveTab] = useState("pending");
-    const [replyingTo, setReplyingTo] = useState(null);
+    const [selectedQuestion, setSelectedQuestion] = useState(null);
     const [replyContent, setReplyContent] = useState("");
-    
-    // Filters
-    const [searchTerm, setSearchTerm] = useState("");
-    const [selectedCourse, setSelectedCourse] = useState(null);
-    const [sortBy, setSortBy] = useState("newest");
-    const [courses, setCourses] = useState([]);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [activeTab, setActiveTab] = useState("pending");
 
     useEffect(() => {
         if (!authService.isTeachingAssistantAuthenticated()) {
@@ -49,113 +37,42 @@ function TAQuestions() {
             return;
         }
         loadQuestions();
-        loadCourses();
+        
+        // Auto refresh every 5 seconds
+        const interval = setInterval(() => {
+            loadQuestions();
+        }, 5000);
+        
+        return () => clearInterval(interval);
     }, [activeTab]);
 
     useEffect(() => {
-        applyFilters();
-    }, [pendingQuestions, assignedQuestions, searchTerm, selectedCourse, sortBy, activeTab]);
+        scrollToBottom();
+    }, [selectedQuestion]);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
 
     const loadQuestions = async () => {
         setLoading(true);
         try {
             if (activeTab === "pending") {
                 const res = await taService.getPendingQuestions();
-                if (res.success) {
-                    if (Array.isArray(res.data)) {
-                        setPendingQuestions(res.data);
-                    } else {
-                        console.error("Invalid data format:", res.data);
-                        setPendingQuestions([]);
-                        message.warning("Dữ liệu không hợp lệ");
-                    }
-                } else {
-                    console.error("Error response:", res);
-                    setPendingQuestions([]);
-                    message.error(res.error || "Lỗi khi tải câu hỏi");
+                if (res.success && Array.isArray(res.data)) {
+                    setPendingQuestions(res.data);
                 }
             } else {
                 const res = await taService.getMyAssignedQuestions();
-                if (res.success) {
-                    if (Array.isArray(res.data)) {
-                        setAssignedQuestions(res.data);
-                    } else {
-                        console.error("Invalid data format:", res.data);
-                        setAssignedQuestions([]);
-                        message.warning("Dữ liệu không hợp lệ");
-                    }
-                } else {
-                    console.error("Error response:", res);
-                    setAssignedQuestions([]);
-                    message.error(res.error || "Lỗi khi tải câu hỏi");
+                if (res.success && Array.isArray(res.data)) {
+                    setAssignedQuestions(res.data);
                 }
             }
         } catch (error) {
             console.error("Error loading questions:", error);
-            if (activeTab === "pending") {
-                setPendingQuestions([]);
-            } else {
-                setAssignedQuestions([]);
-            }
-            message.error("Lỗi khi tải câu hỏi: " + (error.message || "Unknown error"));
         } finally {
             setLoading(false);
         }
-    };
-
-    const loadCourses = async () => {
-        try {
-            const res = await courseService.getAllCourses();
-            if (res.success && Array.isArray(res.data)) {
-                setCourses(res.data);
-            }
-        } catch (error) {
-            console.error("Error loading courses:", error);
-        }
-    };
-
-    const applyFilters = () => {
-        const questions = activeTab === "pending" ? pendingQuestions : assignedQuestions;
-        let filtered = [...questions];
-
-        // Search filter
-        if (searchTerm.trim()) {
-            const term = searchTerm.toLowerCase();
-            filtered = filtered.filter(q => 
-                q.content?.toLowerCase().includes(term) ||
-                q.student?.username?.toLowerCase().includes(term) ||
-                q.course?.course_name?.toLowerCase().includes(term) ||
-                q.lesson?.title?.toLowerCase().includes(term)
-            );
-        }
-
-        // Course filter
-        if (selectedCourse) {
-            filtered = filtered.filter(q => 
-                q.course?.course_id === selectedCourse
-            );
-        }
-
-        // Sort
-        filtered.sort((a, b) => {
-            switch (sortBy) {
-                case "newest":
-                    return new Date(b.createdAt) - new Date(a.createdAt);
-                case "oldest":
-                    return new Date(a.createdAt) - new Date(b.createdAt);
-                case "course":
-                    return (a.course?.course_name || "").localeCompare(b.course?.course_name || "");
-                default:
-                    return 0;
-            }
-        });
-
-        if (activeTab === "pending") {
-            setFilteredPending(filtered);
-        } else {
-            setFilteredAssigned(filtered);
-        }
-        setCurrentPage(1); // Reset to first page when filters change
     };
 
     const handleClaim = async (questionId) => {
@@ -163,7 +80,16 @@ function TAQuestions() {
             const res = await taService.claimQuestion(questionId);
             if (res.success) {
                 message.success("Đã nhận câu hỏi thành công");
-                loadQuestions();
+                await loadQuestions();
+                // Select the claimed question
+                const updated = await taService.getMyAssignedQuestions();
+                if (updated.success && Array.isArray(updated.data)) {
+                    const claimed = updated.data.find(q => q.id === questionId);
+                    if (claimed) {
+                        setSelectedQuestion(claimed);
+                        setActiveTab("assigned");
+                    }
+                }
             } else {
                 message.error(res.error || "Lỗi khi nhận câu hỏi");
             }
@@ -172,18 +98,25 @@ function TAQuestions() {
         }
     };
 
-    const handleAnswer = async (questionId) => {
-        if (!replyContent.trim()) {
+    const handleAnswer = async () => {
+        if (!selectedQuestion || !replyContent.trim()) {
             message.warning("Vui lòng nhập nội dung trả lời");
             return;
         }
         try {
-            const res = await taService.answerQuestion(questionId, replyContent);
+            const res = await taService.answerQuestion(selectedQuestion.id, replyContent);
             if (res.success) {
                 message.success("Đã trả lời câu hỏi thành công");
-                setReplyingTo(null);
                 setReplyContent("");
-                loadQuestions();
+                await loadQuestions();
+                // Refresh selected question
+                const updated = await taService.getMyAssignedQuestions();
+                if (updated.success && Array.isArray(updated.data)) {
+                    const updatedQuestion = updated.data.find(q => q.id === selectedQuestion.id);
+                    if (updatedQuestion) {
+                        setSelectedQuestion(updatedQuestion);
+                    }
+                }
             } else {
                 message.error(res.error || "Lỗi khi trả lời");
             }
@@ -192,19 +125,19 @@ function TAQuestions() {
         }
     };
 
-    const formatTimeAgo = (dateString) => {
-        if (!dateString) return "Vừa xong";
+    const formatTime = (dateString) => {
+        if (!dateString) return "";
         const date = new Date(dateString);
         const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
+        const diff = now - date;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
 
-        if (diffMins < 1) return "Vừa xong";
-        if (diffMins < 60) return `${diffMins} phút trước`;
-        if (diffHours < 24) return `${diffHours} giờ trước`;
-        return `${diffDays} ngày trước`;
+        if (minutes < 1) return "Vừa xong";
+        if (minutes < 60) return `${minutes} phút trước`;
+        if (hours < 24) return `${hours} giờ trước`;
+        return `${days} ngày trước`;
     };
 
     const getInitials = (name) => {
@@ -216,310 +149,291 @@ function TAQuestions() {
         return name.charAt(0).toUpperCase();
     };
 
-    const renderQuestion = (question) => (
-        <Card
-            key={question.id}
-            className="mb-4 shadow-md hover:shadow-lg transition-shadow"
-            bodyStyle={{ padding: "20px" }}
-        >
-            <div className="flex items-start gap-4">
-                {/* Icon */}
-                <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 shadow-md ${
-                    question.status === "ANSWERED" 
-                        ? "bg-gradient-to-br from-green-500 to-emerald-600"
-                        : "bg-gradient-to-br from-orange-500 to-red-600"
-                }`}>
-                    <FontAwesomeIcon 
-                        icon={faQuestionCircle} 
-                        className="text-white text-xl" 
-                    />
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                    {/* Header */}
-                    <div className="flex items-center gap-3 mb-3 flex-wrap">
-                        <div className="flex items-center gap-2">
-                            <FontAwesomeIcon icon={faUser} className="text-gray-400" />
-                            <span className="font-bold text-gray-900">
-                                {question.student?.username || "Học viên"}
-                            </span>
-                        </div>
-                        <span className="text-gray-400">•</span>
-                        <span className="text-sm text-gray-500 flex items-center gap-1">
-                            <FontAwesomeIcon icon={faClock} />
-                            {formatTimeAgo(question.createdAt)}
-                        </span>
-                        {!question.ta && activeTab === "pending" && (
-                            <Tag color="orange" icon={<FontAwesomeIcon icon={faExclamationCircle} />}>
-                                Chưa có TA
-                            </Tag>
-                        )}
-                        {question.status === "ANSWERED" && (
-                            <Tag color="green" icon={<FontAwesomeIcon icon={faCheckCircle} />}>
-                                Đã trả lời
-                            </Tag>
-                        )}
-                        {question.status === "ASSIGNED" && (
-                            <Tag color="blue">
-                                Đã nhận
-                            </Tag>
-                        )}
-                    </div>
-
-                    {/* Question Content */}
-                    <p className="text-gray-700 mb-4 text-base leading-relaxed whitespace-pre-wrap">
-                        {question.content}
-                    </p>
-
-                    {/* Course and Lesson Info */}
-                    <div className="flex flex-wrap gap-3 mb-4">
-                        {question.course && (
-                            <Tag 
-                                icon={<FontAwesomeIcon icon={faBookOpen} />} 
-                                color="blue"
-                                className="px-3 py-1"
-                            >
-                                {question.course.course_name}
-                            </Tag>
-                        )}
-                        {question.lesson && (
-                            <Tag 
-                                icon={<FontAwesomeIcon icon={faGraduationCap} />} 
-                                color="purple"
-                                className="px-3 py-1"
-                            >
-                                {question.lesson.title}
-                            </Tag>
-                        )}
-                    </div>
-
-                    {/* Actions */}
-                    {replyingTo === question.id ? (
-                        <div className="mt-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                            <TextArea
-                                value={replyContent}
-                                onChange={(e) => setReplyContent(e.target.value)}
-                                placeholder="Nhập câu trả lời của bạn..."
-                                rows={4}
-                                className="mb-3"
-                                autoFocus
-                            />
-                            <Space>
-                                <Button
-                                    type="primary"
-                                    icon={<FontAwesomeIcon icon={faReply} />}
-                                    onClick={() => handleAnswer(question.id)}
-                                >
-                                    Gửi trả lời
-                                </Button>
-                                <Button 
-                                    onClick={() => {
-                                        setReplyingTo(null);
-                                        setReplyContent("");
-                                    }}
-                                >
-                                    Hủy
-                                </Button>
-                            </Space>
-                        </div>
-                    ) : (
-                        <div className="flex gap-2">
-                            {!question.ta && activeTab === "pending" ? (
-                                <Button
-                                    type="primary"
-                                    icon={<FontAwesomeIcon icon={faHandPaper} />}
-                                    onClick={() => handleClaim(question.id)}
-                                    className="bg-orange-500 hover:bg-orange-600 border-orange-500"
-                                >
-                                    Nhận câu hỏi
-                                </Button>
-                            ) : question.status !== "ANSWERED" && (
-                                <Button
-                                    type="primary"
-                                    icon={<FontAwesomeIcon icon={faReply} />}
-                                    onClick={() => setReplyingTo(question.id)}
-                                >
-                                    Trả lời câu hỏi
-                                </Button>
-                            )}
-                        </div>
-                    )}
-
-                    {/* TA Response */}
-                    {question.taResponse && (
-                        <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                            <div className="font-semibold text-green-800 mb-2 flex items-center gap-2">
-                                <FontAwesomeIcon icon={faCheckCircle} />
-                                Đã trả lời:
-                            </div>
-                            <p className="text-green-700 whitespace-pre-wrap">{question.taResponse}</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </Card>
-    );
-
-    const currentQuestions = activeTab === "pending" ? filteredPending : filteredAssigned;
+    const filteredQuestions = (activeTab === "pending" ? pendingQuestions : assignedQuestions).filter(q => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+            q.content?.toLowerCase().includes(query) ||
+            q.student?.username?.toLowerCase().includes(query) ||
+            q.course?.course_name?.toLowerCase().includes(query) ||
+            q.lesson?.title?.toLowerCase().includes(query)
+        );
+    });
 
     return (
-        <div className="bg-gradient-to-b from-indigo-50 via-sky-50 to-white min-h-screen">
+        <div className="min-h-screen bg-gray-50 flex flex-col">
             <Navbar />
-            <div className="max-w-7xl mx-auto px-6 py-8">
-                {/* Header */}
-                <div className="mb-6">
-                    <button
-                        onClick={() => navigate("/teaching-assistant-home")}
-                        className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-semibold mb-4 transition-colors"
-                    >
-                        <FontAwesomeIcon icon={faArrowLeft} />
-                        Quay lại trang chủ
-                    </button>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-4xl font-extrabold text-gray-900 mb-2">Quản lý câu hỏi</h1>
-                            <p className="text-gray-600">Xem và trả lời các câu hỏi "Hỏi trực tiếp" từ học viên</p>
+            <div className="flex-1 flex overflow-hidden min-h-0" style={{ height: "calc(100vh - 140px)" }}>
+                {/* Sidebar - Danh sách câu hỏi */}
+                <div className="w-80 bg-white border-r border-gray-200 flex flex-col min-h-0">
+                    {/* Header */}
+                    <div className="p-4 border-b border-gray-200">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-800">Câu hỏi giải đáp</h2>
+                            <button
+                                onClick={() => navigate("/teaching-assistant-home")}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                <FontAwesomeIcon icon={faArrowLeft} />
+                            </button>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Badge count={pendingQuestions.length} showZero>
-                                <Tag color="orange" className="text-lg px-4 py-1">
-                                    Đang chờ
-                                </Tag>
-                            </Badge>
-                            <Badge count={assignedQuestions.length} showZero>
-                                <Tag color="blue" className="text-lg px-4 py-1">
-                                    Đã nhận
-                                </Tag>
-                            </Badge>
+
+                        {/* Tabs */}
+                        <div className="flex gap-2 mb-3">
+                            <button
+                                onClick={() => {
+                                    setActiveTab("pending");
+                                    setSelectedQuestion(null);
+                                }}
+                                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                                    activeTab === "pending"
+                                        ? "bg-orange-100 text-orange-700"
+                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                }`}
+                            >
+                                Đang chờ ({pendingQuestions.length})
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setActiveTab("assigned");
+                                    setSelectedQuestion(null);
+                                }}
+                                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                                    activeTab === "assigned"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                }`}
+                            >
+                                Đã nhận ({assignedQuestions.length})
+                            </button>
                         </div>
+
+                        {/* Search */}
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Tìm kiếm câu hỏi..."
+                                className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            />
+                            <FontAwesomeIcon
+                                icon={faSearch}
+                                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Questions List */}
+                    <div className="flex-1 overflow-y-auto min-h-0">
+                        {filteredQuestions.length === 0 ? (
+                            <div className="p-4 text-center text-gray-500 text-sm">
+                                <p>Không có câu hỏi nào</p>
+                            </div>
+                        ) : (
+                            filteredQuestions.map((question) => (
+                                <button
+                                    key={question.id}
+                                    onClick={() => setSelectedQuestion(question)}
+                                    className={`w-full p-4 text-left hover:bg-gray-50 transition border-b border-gray-100 ${
+                                        selectedQuestion?.id === question.id ? "bg-blue-50" : ""
+                                    }`}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                            question.status === "ANSWERED"
+                                                ? "bg-green-100 text-green-700"
+                                                : "bg-orange-100 text-orange-700"
+                                        }`}>
+                                            <FontAwesomeIcon icon={faQuestionCircle} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <p className="font-semibold text-gray-900 truncate text-sm">
+                                                    {question.student?.username || "Học viên"}
+                                                </p>
+                                                {question.status === "ANSWERED" && (
+                                                    <FontAwesomeIcon icon={faCheckCircle} className="text-green-500 text-xs" />
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-500 truncate mb-1">
+                                                {question.content?.substring(0, 50)}...
+                                            </p>
+                                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                <FontAwesomeIcon icon={faClock} />
+                                                {formatTime(question.createdAt)}
+                                            </div>
+                                            {question.course && (
+                                                <div className="mt-1">
+                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                                        {question.course.course_name}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </button>
+                            ))
+                        )}
                     </div>
                 </div>
 
-                {/* Tabs */}
-                <Tabs
-                    activeKey={activeTab}
-                    onChange={(key) => {
-                        setActiveTab(key);
-                        setSearchTerm("");
-                        setSelectedCourse(null);
-                    }}
-                    items={[
-                        {
-                            key: "pending",
-                            label: (
-                                <span>
-                                    <FontAwesomeIcon icon={faExclamationCircle} className="mr-2" />
-                                    Đang chờ <Badge count={pendingQuestions.length} style={{ marginLeft: 8 }} />
-                                </span>
-                            ),
-                        },
-                        {
-                            key: "assigned",
-                            label: (
-                                <span>
-                                    <FontAwesomeIcon icon={faHandPaper} className="mr-2" />
-                                    Đã nhận <Badge count={assignedQuestions.length} style={{ marginLeft: 8 }} />
-                                </span>
-                            ),
-                        },
-                    ]}
-                    className="mb-6"
-                    size="large"
-                />
-
-                {/* Filters */}
-                <Card className="mb-6 shadow-md">
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1">
-                            <Search
-                                placeholder="Tìm kiếm theo nội dung, học viên, khóa học..."
-                                allowClear
-                                enterButton={<FontAwesomeIcon icon={faSearch} />}
-                                size="large"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full"
-                            />
-                        </div>
-                        <div className="flex gap-2">
-                            <Select
-                                placeholder="Lọc theo khóa học"
-                                allowClear
-                                style={{ width: 200 }}
-                                value={selectedCourse}
-                                onChange={setSelectedCourse}
-                            >
-                                {courses.map((course) => (
-                                    <Select.Option key={course.course_id} value={course.course_id}>
-                                        {course.course_name}
-                                    </Select.Option>
-                                ))}
-                            </Select>
-                            <Select
-                                placeholder="Sắp xếp"
-                                style={{ width: 150 }}
-                                value={sortBy}
-                                onChange={setSortBy}
-                                suffixIcon={<FontAwesomeIcon icon={faSort} />}
-                            >
-                                <Select.Option value="newest">Mới nhất</Select.Option>
-                                <Select.Option value="oldest">Cũ nhất</Select.Option>
-                                <Select.Option value="course">Theo khóa học</Select.Option>
-                            </Select>
-                        </div>
-                    </div>
-                </Card>
-
-                {/* Questions List */}
-                {loading ? (
-                    <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-                        <Spin size="large" />
-                    </div>
-                ) : currentQuestions.length === 0 ? (
-                    <Card className="shadow-lg">
-                        <Empty
-                            image={<FontAwesomeIcon icon={faCheckCircle} className="text-6xl text-green-500" />}
-                            description={
-                                <span className="text-gray-600 text-lg">
-                                    {activeTab === "pending" 
-                                        ? (pendingQuestions.length === 0 
-                                            ? "Không có câu hỏi nào đang chờ" 
-                                            : "Không tìm thấy câu hỏi phù hợp")
-                                        : (assignedQuestions.length === 0 
-                                            ? "Chưa có câu hỏi nào được phân công" 
-                                            : "Không tìm thấy câu hỏi phù hợp")}
-                                </span>
-                            }
-                        />
-                    </Card>
-                ) : (
-                    <>
-                        <div className="space-y-4">
-                            {currentQuestions
-                                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                                .map(renderQuestion)}
-                        </div>
-                        {currentQuestions.length > pageSize && (
-                            <div className="mt-6 flex justify-center">
-                                <Pagination
-                                    current={currentPage}
-                                    pageSize={pageSize}
-                                    total={currentQuestions.length}
-                                    onChange={(page, size) => {
-                                        setCurrentPage(page);
-                                        setPageSize(size);
-                                    }}
-                                    showSizeChanger
-                                    showTotal={(total) => `Tổng ${total} câu hỏi`}
-                                    pageSizeOptions={['10', '20', '50']}
-                                />
+                {/* Main chat area */}
+                <div className="flex-1 flex flex-col bg-white min-h-0">
+                    {selectedQuestion ? (
+                        <>
+                            {/* Chat header */}
+                            <div className="p-4 border-b border-gray-200 bg-white">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                            <FontAwesomeIcon icon={faUser} className="text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-gray-900">
+                                                {selectedQuestion.student?.username || "Học viên"}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                {formatTime(selectedQuestion.createdAt)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {!selectedQuestion.ta && activeTab === "pending" && (
+                                        <button
+                                            onClick={() => handleClaim(selectedQuestion.id)}
+                                            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-semibold text-sm flex items-center gap-2"
+                                        >
+                                            <FontAwesomeIcon icon={faHandPaper} />
+                                            Nhận câu hỏi
+                                        </button>
+                                    )}
+                                </div>
+                                {selectedQuestion.course && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <FontAwesomeIcon icon={faBookOpen} className="text-gray-400 text-xs" />
+                                        <span className="text-xs text-gray-600">{selectedQuestion.course.course_name}</span>
+                                        {selectedQuestion.lesson && (
+                                            <>
+                                                <span className="text-gray-400">•</span>
+                                                <FontAwesomeIcon icon={faGraduationCap} className="text-gray-400 text-xs" />
+                                                <span className="text-xs text-gray-600">{selectedQuestion.lesson.title}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </>
-                )}
+
+                            {/* Messages */}
+                            <div
+                                className="flex-1 overflow-y-auto p-4 bg-gray-50 min-h-0"
+                                style={{
+                                    maxHeight: "calc(100vh - 240px)",
+                                    minHeight: "320px"
+                                }}
+                            >
+                                <div className="space-y-4">
+                                    {/* Question */}
+                                    <div className="flex justify-start">
+                                        <div className="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-white text-gray-900 border border-gray-200">
+                                            <p className="text-xs font-semibold mb-1 text-gray-600">
+                                                Câu hỏi:
+                                            </p>
+                                            <p className="text-sm whitespace-pre-wrap">{selectedQuestion.content}</p>
+                                            <p className="text-xs mt-1 text-gray-500">
+                                                {formatTime(selectedQuestion.createdAt)}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* TA Response */}
+                                    {selectedQuestion.taResponse && (
+                                        <div className="flex justify-end">
+                                            <div className="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-blue-600 text-white">
+                                                <p className="text-xs font-semibold mb-1 text-blue-100">
+                                                    Trả lời của bạn:
+                                                </p>
+                                                <p className="text-sm whitespace-pre-wrap">{selectedQuestion.taResponse}</p>
+                                                <p className="text-xs mt-1 text-blue-100">
+                                                    {formatTime(selectedQuestion.respondedAt)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Rating if resolved */}
+                                    {selectedQuestion.isResolved && selectedQuestion.rating && (
+                                        <div className="flex justify-start">
+                                            <div className="px-4 py-2 rounded-lg bg-green-50 border border-green-200">
+                                                <p className="text-xs text-green-700 flex items-center gap-1">
+                                                    <FontAwesomeIcon icon={faCheckCircle} />
+                                                    Đã giải quyết
+                                                </p>
+                                                <div className="flex items-center gap-1 mt-1">
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <FontAwesomeIcon
+                                                            key={star}
+                                                            icon={faStar}
+                                                            className={`text-sm ${
+                                                                star <= selectedQuestion.rating
+                                                                    ? "text-yellow-400"
+                                                                    : "text-gray-300"
+                                                            }`}
+                                                        />
+                                                    ))}
+                                                    <span className="text-xs text-gray-600 ml-1">
+                                                        ({selectedQuestion.rating}/5)
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div ref={messagesEndRef} />
+                                </div>
+                            </div>
+
+                            {/* Input */}
+                            {selectedQuestion.status !== "ANSWERED" && selectedQuestion.ta && (
+                                <div className="p-4 border-t border-gray-200 bg-white">
+                                    <form
+                                        onSubmit={(e) => {
+                                            e.preventDefault();
+                                            handleAnswer();
+                                        }}
+                                        className="flex gap-2"
+                                    >
+                                        <textarea
+                                            value={replyContent}
+                                            onChange={(e) => setReplyContent(e.target.value)}
+                                            placeholder="Nhập câu trả lời..."
+                                            rows={3}
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={!replyContent.trim()}
+                                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition font-semibold flex items-center gap-2"
+                                        >
+                                            <FontAwesomeIcon icon={faReply} />
+                                            Gửi
+                                        </button>
+                                    </form>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-gray-500">
+                            <div className="text-center">
+                                <FontAwesomeIcon
+                                    icon={faQuestionCircle}
+                                    className="w-16 h-16 mx-auto mb-4 text-gray-400"
+                                />
+                                <p className="text-lg">Chọn một câu hỏi để xem chi tiết</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
-            <Footer />
         </div>
     );
 }

@@ -73,6 +73,16 @@ public class DirectQuestion {
     @Column(name = "responded_at")
     private LocalDateTime respondedAt; // Thời điểm TA phản hồi
 
+    @Column(name = "rating")
+    private Integer rating; // Đánh giá từ học viên (1-5)
+
+    @Column(name = "is_resolved")
+    @Builder.Default
+    private Boolean isResolved = false; // Đã được đánh dấu giải quyết chưa
+
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt; // Thời điểm đánh dấu giải quyết
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

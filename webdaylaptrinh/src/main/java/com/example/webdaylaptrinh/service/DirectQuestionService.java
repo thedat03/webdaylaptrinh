@@ -188,4 +188,32 @@ public class DirectQuestionService {
         question.setStatus(DirectQuestionStatus.ASSIGNED);
         return directQuestionRepository.save(question);
     }
+
+    /**
+     * Học viên đánh dấu câu hỏi đã giải quyết và đánh giá
+     */
+    @Transactional
+    public DirectQuestion markAsResolved(UUID questionId, UUID studentId, Integer rating) {
+        DirectQuestion question = directQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new RuntimeException("Question not found"));
+
+        // Kiểm tra quyền sở hữu
+        if (!question.getStudent().getId().equals(studentId)) {
+            throw new RuntimeException("You don't have permission to mark this question as resolved");
+        }
+
+        // Chỉ cho phép đánh dấu nếu đã được trả lời
+        if (question.getStatus() != DirectQuestionStatus.ANSWERED) {
+            throw new RuntimeException("Question must be answered before marking as resolved");
+        }
+
+        question.setIsResolved(true);
+        question.setResolvedAt(LocalDateTime.now());
+        
+        if (rating != null && rating >= 1 && rating <= 5) {
+            question.setRating(rating);
+        }
+
+        return directQuestionRepository.save(question);
+    }
 }

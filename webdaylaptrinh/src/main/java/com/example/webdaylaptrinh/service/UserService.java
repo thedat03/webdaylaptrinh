@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -81,5 +82,28 @@ public User authenticateUser(String email, String password) {
 
 public void deleteUser(UUID id) {
     userRepository.deleteById(id);
+}
+
+/**
+ * Cập nhật thời gian hoạt động cuối cùng của user (heartbeat)
+ */
+public void updateLastActiveAt(UUID userId) {
+    User user = userRepository.findById(userId).orElse(null);
+    if (user != null) {
+        user.setLastActiveAt(LocalDateTime.now());
+        userRepository.save(user);
+    }
+}
+
+/**
+ * Kiểm tra user có đang online không (online nếu lastActiveAt trong vòng 5 phút)
+ */
+public boolean isUserOnline(User user) {
+    if (user == null || user.getLastActiveAt() == null) {
+        return false;
+    }
+    LocalDateTime now = LocalDateTime.now();
+    LocalDateTime fiveMinutesAgo = now.minusMinutes(5);
+    return user.getLastActiveAt().isAfter(fiveMinutesAgo);
 }
 }

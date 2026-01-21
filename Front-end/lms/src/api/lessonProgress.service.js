@@ -1,12 +1,22 @@
 import api from "./api";
 
-async function markLessonCompleted(userId, lessonId) {
+async function markLessonCompleted(userId, lessonId, watchedSeconds = null, watchedPercentage = null) {
     try {
-        await api.post("/api/lesson-progress/complete", {
+        const payload = {
             userId,
             lessonId,
             isCompleted: true
-        });
+        };
+        
+        // Thêm watchedSeconds và watchedPercentage nếu có
+        if (watchedSeconds !== null && watchedSeconds !== undefined) {
+            payload.watchedSeconds = Math.floor(watchedSeconds);
+        }
+        if (watchedPercentage !== null && watchedPercentage !== undefined) {
+            payload.watchedPercentage = Math.round(watchedPercentage * 100) / 100; // Round to 2 decimals
+        }
+        
+        await api.post("/api/lesson-progress/complete", payload);
         return { success: true };
     } catch (error) {
         console.error("Error marking lesson as completed:", error);

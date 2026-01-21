@@ -115,6 +115,20 @@ async function deleteMessage(messageId) {
     }
 }
 
+// Gửi heartbeat để cập nhật online status
+async function sendHeartbeat() {
+    try {
+        const { data } = await api.post("/api/users/heartbeat");
+        return { success: true, data: data?.data || data };
+    } catch (error) {
+        console.error("Error sending heartbeat:", error);
+        return {
+            success: false,
+            error: error.response?.data?.message || "Không thể cập nhật heartbeat"
+        };
+    }
+}
+
 export const messageService = {
     sendMessage,
     getConversation,
@@ -124,5 +138,6 @@ export const messageService = {
     getUnreadMessages,
     markAsRead,
     deleteMessage,
+    sendHeartbeat,
 };
 

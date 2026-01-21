@@ -54,7 +54,7 @@ export default function UserDropdown({ isOpen, onClose, buttonRef }) {
                         }
                     }
                 } catch (error) {
-                    console.error("Error loading user data:", error);
+                    // Không log error cho profile image (404 là bình thường)
                     setUserName(localStorage.getItem("username") || "Người dùng");
                     const storedImage = localStorage.getItem("profileImage");
                     if (storedImage) {

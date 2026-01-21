@@ -1,6 +1,7 @@
 package com.example.webdaylaptrinh.controller;
 
 import com.example.webdaylaptrinh.dto.ApiResponse;
+import com.example.webdaylaptrinh.dto.UserWithStatusDTO;
 import com.example.webdaylaptrinh.entity.Message;
 import com.example.webdaylaptrinh.entity.User;
 import com.example.webdaylaptrinh.enums.UserRole;
@@ -82,12 +83,12 @@ public class MessageController {
      * Lấy danh sách người đã chat
      */
     @GetMapping("/conversations")
-    public ResponseEntity<ApiResponse<List<User>>> getConversations(Authentication authentication) {
+    public ResponseEntity<ApiResponse<List<UserWithStatusDTO>>> getConversations(Authentication authentication) {
         try {
             UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
             UUID userId = userPrincipal.getId();
 
-            List<User> partners = messageService.getConversationPartners(userId);
+            List<UserWithStatusDTO> partners = messageService.getConversationPartners(userId);
             return ResponseEntity.ok(new ApiResponse<>("Lấy danh sách cuộc trò chuyện thành công", partners));
         } catch (Exception e) {
             log.error("Error getting conversations", e);
@@ -100,12 +101,12 @@ public class MessageController {
      * Lấy danh sách người dùng có thể chat
      */
     @GetMapping("/available-users")
-    public ResponseEntity<ApiResponse<List<User>>> getAvailableChatUsers(Authentication authentication) {
+    public ResponseEntity<ApiResponse<List<UserWithStatusDTO>>> getAvailableChatUsers(Authentication authentication) {
         try {
             UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
             UUID userId = userPrincipal.getId();
 
-            List<User> users = messageService.getAvailableChatUsers(userId);
+            List<UserWithStatusDTO> users = messageService.getAvailableChatUsers(userId);
             return ResponseEntity.ok(new ApiResponse<>("Lấy danh sách người dùng thành công", users));
         } catch (Exception e) {
             log.error("Error getting available users", e);

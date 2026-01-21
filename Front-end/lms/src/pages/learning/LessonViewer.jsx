@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { message } from "antd";
 import CommentSection from "../../Components/common/CommentSection";
+import TAAssistantButton from "../../Components/common/TAAssistantButton";
 import logo from "../../assets/images/logo.jpg";
 import { learningService } from "../../api/learning.service";
 import { codeService } from "../../api/code.service";
@@ -99,6 +100,16 @@ export default function LessonViewer() {
     const [videoWatchedTime, setVideoWatchedTime] = useState(0); // Thời gian đã xem (giây)
     const [videoDuration, setVideoDuration] = useState(0); // Tổng thời gian video (giây)
     const [youtubePlayer, setYoutubePlayer] = useState(null);
+    // Track unique seconds watched using Set
+    const watchedSecondsRef = useRef(new Set());
+    const progressIntervalRef = useRef(null);
+    const playerContainerIdRef = useRef(null);
+    const autoCompletedRef = useRef(false); // Flag để tránh gọi API nhiều lần (50%)
+    const autoCompleted80Ref = useRef(false); // Flag để tránh gọi API nhiều lần (80%)
+    const currentLessonRef = useRef(lesson); // Ref để truy cập lesson hiện tại trong interval
+    const currentUserIdRef = useRef(userId); // Ref để truy cập userId hiện tại trong interval
+    const currentCourseIdRef = useRef(courseId); // Ref để truy cập courseId hiện tại trong interval
+    const lessonCompletedRef = useRef(false); // Ref để kiểm tra trạng thái completed trong interval
 
     // Load data from API if state is not available
     useEffect(() => {
@@ -370,6 +381,7 @@ export default function LessonViewer() {
             const result = await lessonProgressService.checkLessonCompleted(userId, lesson.lesson_id);
             if (result.success) {
                 setLessonCompleted(result.data);
+                lessonCompletedRef.current = result.data; // Cập nhật ref
             }
         } catch (error) {
             console.error("Error checking lesson completion:", error);
@@ -406,12 +418,21 @@ export default function LessonViewer() {
         if (lesson?.lesson_id && userId) {
             checkLessonCompletionStatus();
         }
-        
+
         // Reset video progress khi chuyển lesson
         if (lesson?.type === "VIDEO") {
             setVideoWatchedTime(0);
             setVideoDuration(0);
+            watchedSecondsRef.current = new Set();
+            autoCompletedRef.current = false;
+            autoCompleted80Ref.current = false;
         }
+
+        // Cập nhật refs để dùng trong interval
+        currentLessonRef.current = lesson;
+        currentUserIdRef.current = userId;
+        currentCourseIdRef.current = courseId;
+        lessonCompletedRef.current = lessonCompleted; // Cập nhật ref từ state
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lesson?.lesson_id, parsedLessonTestCases, userId, lesson?.type]);
 
@@ -423,41 +444,134 @@ export default function LessonViewer() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [courseId, userId]);
 
-    // Progress tracking interval
-    let progressInterval = null;
-
+    // Start tracking progress - track unique seconds watched
     const startTrackingProgress = (player) => {
-        if (progressInterval) return;
-        
-        progressInterval = setInterval(() => {
+        // Clear existing interval if any
+        if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+        }
+
+        progressIntervalRef.current = setInterval(() => {
             try {
+                // Chỉ track khi player đang playing
+                const playerState = player.getPlayerState();
+                if (playerState !== window.YT.PlayerState.PLAYING) {
+                    return;
+                }
+
                 const currentTime = player.getCurrentTime();
                 const duration = player.getDuration();
-                
-                if (currentTime && duration) {
+
+                if (currentTime && duration && currentTime > 0) {
                     setVideoDuration(duration);
-                    
-                    // Lưu watchedTime lớn nhất (để track progress ngay cả khi user tua lại)
-                    setVideoWatchedTime(prev => {
-                        const maxTime = Math.max(prev || 0, currentTime);
-                        const watchedPercent = Math.round((maxTime / duration) * 100);
-                        // Debug log mỗi 10%
-                        if (watchedPercent % 10 === 0 && watchedPercent > 0) {
-                            console.log(`Video progress: ${watchedPercent}% (${Math.round(maxTime)}s / ${Math.round(duration)}s)`);
-                        }
-                        return maxTime;
-                    });
+
+                    // Track unique seconds watched (round down to integer)
+                    const currentSecond = Math.floor(currentTime);
+                    watchedSecondsRef.current.add(currentSecond);
+
+                    // Update watched time (unique seconds count)
+                    const uniqueSecondsWatched = watchedSecondsRef.current.size;
+                    setVideoWatchedTime(uniqueSecondsWatched);
+
+                    // Calculate percentage
+                    const watchedPercentage = (uniqueSecondsWatched / Math.floor(duration)) * 100;
+
+                    // Debug log mỗi 5% để dễ theo dõi
+                    if (Math.floor(watchedPercentage) % 5 === 0 && watchedPercentage > 0 && watchedPercentage <= 100) {
+                        console.log(`Video progress: ${Math.round(watchedPercentage)}% (${uniqueSecondsWatched}s / ${Math.floor(duration)}s unique seconds)`, {
+                            lessonCompleted,
+                            autoCompleted80Ref: autoCompleted80Ref.current,
+                            autoCompletedRef: autoCompletedRef.current,
+                            lessonId: lesson?.lesson_id,
+                            userId
+                        });
+                    }
+
+                    // Lấy giá trị lesson, userId, courseId từ ref để đảm bảo luôn lấy giá trị mới nhất
+                    const currentLesson = currentLessonRef.current;
+                    const currentUserId = currentUserIdRef.current;
+                    const currentCourseId = currentCourseIdRef.current;
+                    const isCompleted = lessonCompletedRef.current; // Dùng ref thay vì state để kiểm tra trong interval
+
+                    // Debug log chi tiết khi gần đạt 80%
+                    if (watchedPercentage >= 75 && watchedPercentage < 82) {
+                        console.log(`[DEBUG 80%] Near 80% threshold: ${Math.round(watchedPercentage)}%`, {
+                            watchedPercentage: Math.round(watchedPercentage),
+                            isCompleted,
+                            autoCompleted80Ref: autoCompleted80Ref.current,
+                            lessonId: currentLesson?.lesson_id,
+                            userId: currentUserId
+                        });
+                    }
+
+                    // Tự động đánh dấu completed khi >= 80% - CHỈ mức này mới tự động tích
+                    // Ở 50%: chỉ hiển thị button để user tích thủ công, KHÔNG tự động tích
+                    if (watchedPercentage >= 80 && !isCompleted && !autoCompleted80Ref.current && currentLesson?.lesson_id && currentUserId) {
+                        console.log(`[AUTO-COMPLETE 80%] Triggering auto-complete: ${Math.round(watchedPercentage)}% watched`, {
+                            lessonId: currentLesson.lesson_id,
+                            uniqueSeconds: uniqueSecondsWatched,
+                            duration: Math.floor(duration),
+                            watchedPercentage: Math.round(watchedPercentage)
+                        });
+                        autoCompleted80Ref.current = true; // Đánh dấu đã gọi API - chỉ chạy 1 lần
+
+                        // Gọi API để đánh dấu completed
+                        lessonProgressService.markLessonCompleted(
+                            currentUserId,
+                            currentLesson.lesson_id,
+                            uniqueSecondsWatched,
+                            watchedPercentage
+                        ).then(result => {
+                            console.log(`[AUTO-COMPLETE 80%] API response:`, result);
+                            if (result.success) {
+                                console.log(`[AUTO-COMPLETE 80%] Success! Updating UI...`);
+                                setLessonCompleted(true);
+                                lessonCompletedRef.current = true; // Cập nhật ref ngay lập tức
+                                // Cập nhật completedLessonsSet để UI cập nhật ngay lập tức
+                                setCompletedLessonsSet(prev => {
+                                    const newSet = new Set(prev);
+                                    newSet.add(currentLesson.lesson_id);
+                                    console.log(`[AUTO-COMPLETE 80%] Updated completedLessonsSet, new size:`, newSet.size, `Added lessonId:`, currentLesson.lesson_id);
+                                    return newSet;
+                                });
+                                message.success("Bạn đã xem hơn 80% video. Bài học đã được tự động đánh dấu hoàn thành!");
+                                localStorage.setItem('lessonProgressLastUpdate', Date.now().toString());
+                                window.dispatchEvent(new CustomEvent('lessonCompleted', {
+                                    detail: {
+                                        lessonId: currentLesson.lesson_id,
+                                        courseId: currentCourseId,
+                                        userId: currentUserId
+                                    }
+                                }));
+                            } else {
+                                console.error(`[AUTO-COMPLETE 80%] API failed:`, result.error);
+                                // Nếu thất bại, reset flag để thử lại
+                                autoCompleted80Ref.current = false;
+                                autoCompletedRef.current = false;
+                            }
+                        }).catch(err => {
+                            console.error("[AUTO-COMPLETE 80%] Error auto-marking lesson as completed at 80%:", err);
+                            // Reset flag để có thể thử lại
+                            autoCompleted80Ref.current = false;
+                            autoCompletedRef.current = false;
+                        });
+                    }
+                    // KHÔNG tự động tích ở 50% - chỉ hiển thị button để user tích thủ công
+                    // Logic tự động tích chỉ chạy khi >= 80%
                 }
             } catch (e) {
-                console.error("Error tracking video progress:", e);
+                // Ignore errors if player is not ready
+                if (e.message && !e.message.includes('not available')) {
+                    console.error("Error tracking video progress:", e);
+                }
             }
         }, 1000); // Update mỗi giây
     };
 
     const stopTrackingProgress = () => {
-        if (progressInterval) {
-            clearInterval(progressInterval);
-            progressInterval = null;
+        if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
         }
     };
 
@@ -469,42 +583,123 @@ export default function LessonViewer() {
             if (youtubePlayer) {
                 try {
                     youtubePlayer.destroy();
-                } catch (e) {
-                    console.error("Error destroying YouTube player:", e);
+                } catch {
+                    // Ignore errors during cleanup
                 }
                 setYoutubePlayer(null);
+            }
+            // Cleanup container ID
+            if (playerContainerIdRef.current) {
+                const container = document.getElementById(playerContainerIdRef.current);
+                if (container) {
+                    container.innerHTML = '';
+                }
+                playerContainerIdRef.current = null;
             }
             return;
         }
 
+        // Tạo unique container ID cho mỗi player instance
+        const containerId = `youtube-player-${lesson.lesson_id || Date.now()}`;
+        playerContainerIdRef.current = containerId;
+
+        // Đảm bảo container tồn tại - sử dụng setTimeout để đợi DOM render
+        let container = null;
+        const setupContainer = () => {
+            container = document.getElementById(containerId);
+            if (!container) {
+                // Tìm container cha trong phần video của lesson
+                const videoSection = document.querySelector('.aspect-video, [class*="aspect-video"]');
+                if (videoSection) {
+                    // Tìm div con trống hoặc có id bắt đầu bằng youtube-player
+                    const existingPlayerDiv = videoSection.querySelector('[id^="youtube-player"]');
+                    if (existingPlayerDiv) {
+                        existingPlayerDiv.id = containerId;
+                        container = existingPlayerDiv;
+                    } else {
+                        // Tạo mới container
+                        container = document.createElement('div');
+                        container.id = containerId;
+                        container.className = 'w-full h-full';
+                        videoSection.innerHTML = '';
+                        videoSection.appendChild(container);
+                    }
+                }
+            }
+        };
+
+        // Đợi DOM render xong
+        setTimeout(setupContainer, 0);
+
         let playerInstance = null;
 
         const initializePlayer = () => {
-            if (!videoId || !window.YT || !window.YT.Player) return;
+            if (!videoId || !window.YT || !window.YT.Player) {
+                console.warn("YouTube API not ready yet");
+                return;
+            }
+
+            // Kiểm tra container có tồn tại không - thử lại nếu chưa có
+            container = document.getElementById(containerId);
+            if (!container) {
+                setupContainer();
+                container = document.getElementById(containerId);
+            }
+
+            if (!container) {
+                console.error(`Container #${containerId} không tồn tại. Retrying...`);
+                // Retry sau 500ms
+                setTimeout(() => {
+                    if (window.YT && window.YT.Player) {
+                        initializePlayer();
+                    }
+                }, 500);
+                return;
+            }
 
             try {
-                playerInstance = new window.YT.Player('youtube-player', {
+                // Cleanup existing player if any
+                if (playerInstance) {
+                    try {
+                        playerInstance.destroy();
+                    } catch {
+                        // Ignore
+                    }
+                }
+
+                playerInstance = new window.YT.Player(containerId, {
                     videoId: videoId,
                     playerVars: {
                         'playsinline': 1,
                         'enablejsapi': 1,
-                        'origin': window.location.origin
+                        'origin': window.location.origin,
+                        'modestbranding': 1,
+                        'rel': 0
                     },
                     events: {
                         'onReady': (event) => {
+                            console.log('YouTube player ready');
                             setYoutubePlayer(event.target);
-                            const duration = event.target.getDuration();
-                            if (duration) {
-                                setVideoDuration(duration);
+                            try {
+                                const duration = event.target.getDuration();
+                                if (duration && duration > 0) {
+                                    setVideoDuration(duration);
+                                }
+                            } catch (e) {
+                                console.warn("Could not get duration yet:", e);
                             }
                         },
                         'onStateChange': (event) => {
-                            // State 1 = playing, 2 = paused
+                            // State 1 = playing, 2 = paused, 0 = ended
                             if (event.data === window.YT.PlayerState.PLAYING) {
                                 startTrackingProgress(event.target);
-                            } else if (event.data === window.YT.PlayerState.PAUSED) {
+                            } else if (event.data === window.YT.PlayerState.PAUSED ||
+                                event.data === window.YT.PlayerState.ENDED) {
                                 stopTrackingProgress();
                             }
+                        },
+                        'onError': (event) => {
+                            console.error("YouTube player error:", event.data);
                         }
                     }
                 });
@@ -515,75 +710,70 @@ export default function LessonViewer() {
 
         // Kiểm tra xem script đã được load chưa
         if (window.YT && window.YT.Player) {
-            initializePlayer();
+            // API đã sẵn sàng
+            setTimeout(() => initializePlayer(), 100);
         } else {
-            // Load YouTube IFrame API script
+            // Load YouTube IFrame API script nếu chưa có
             const existingScript = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
             if (!existingScript) {
                 const tag = document.createElement('script');
                 tag.src = 'https://www.youtube.com/iframe_api';
+                tag.async = true;
                 const firstScriptTag = document.getElementsByTagName('script')[0];
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
             }
 
-            // Đợi API load xong
+            // Setup global callback - quan trọng: phải ở global scope
+            // Lưu callback cũ nếu có (có thể từ component khác)
             const originalCallback = window.onYouTubeIframeAPIReady;
+
+            // Override callback - sẽ gọi cả callback cũ và callback mới
             window.onYouTubeIframeAPIReady = () => {
-                if (originalCallback) originalCallback();
-                initializePlayer();
+                if (originalCallback) {
+                    try {
+                        originalCallback();
+                    } catch (e) {
+                        console.error("Error in original YouTube API callback:", e);
+                    }
+                }
+                // Gọi initialize sau khi API sẵn sàng
+                setTimeout(() => initializePlayer(), 100);
             };
+
+            // Nếu API đã load trước khi chúng ta setup callback
+            if (window.YT && window.YT.loaded) {
+                setTimeout(() => initializePlayer(), 100);
+            }
         }
 
         return () => {
+            // Cleanup interval
             stopTrackingProgress();
+
+            // Cleanup player instance
             if (playerInstance) {
                 try {
                     playerInstance.destroy();
-                } catch (e) {
-                    console.error("Error destroying YouTube player:", e);
+                } catch {
+                    // Ignore errors during cleanup
                 }
             }
+
+            // Cleanup từ state
             if (youtubePlayer) {
                 try {
                     youtubePlayer.destroy();
-                } catch (e) {
-                    console.error("Error destroying YouTube player:", e);
+                } catch {
+                    // Ignore errors during cleanup
                 }
                 setYoutubePlayer(null);
             }
+
+            // Reset watched seconds
+            watchedSecondsRef.current = new Set();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [videoId, lesson?.type]);
-
-    const initializePlayer = () => {
-        if (!videoId || !window.YT || !window.YT.Player) return;
-
-        const player = new window.YT.Player('youtube-player', {
-            videoId: videoId,
-            playerVars: {
-                'playsinline': 1,
-                'enablejsapi': 1,
-                'origin': window.location.origin
-            },
-            events: {
-                'onReady': (event) => {
-                    setYoutubePlayer(event.target);
-                    const duration = event.target.getDuration();
-                    if (duration) {
-                        setVideoDuration(duration);
-                    }
-                },
-                'onStateChange': (event) => {
-                    // State 1 = playing, 2 = paused
-                    if (event.data === window.YT.PlayerState.PLAYING) {
-                        startTrackingProgress(event.target);
-                    } else if (event.data === window.YT.PlayerState.PAUSED) {
-                        stopTrackingProgress();
-                    }
-                }
-            }
-        });
-    };
+    }, [videoId, lesson?.lesson_id, lesson?.type]);
 
     // Kiểm tra xem đã xem đủ nửa video chưa
     const canMarkAsCompleted = useMemo(() => {
@@ -596,7 +786,7 @@ export default function LessonViewer() {
 
     const markLessonAsCompleted = async () => {
         if (!lesson?.lesson_id || !userId || lessonCompleted) return;
-        
+
         // Kiểm tra điều kiện xem video
         if (lesson?.type === "VIDEO" && !canMarkAsCompleted) {
             const watchedPercent = videoDuration > 0 ? Math.round((videoWatchedTime / videoDuration) * 100) : 0;
@@ -605,9 +795,19 @@ export default function LessonViewer() {
         }
 
         try {
-            const result = await lessonProgressService.markLessonCompleted(userId, lesson.lesson_id);
+            // Tính watchedSeconds và watchedPercentage
+            const uniqueSeconds = watchedSecondsRef.current.size;
+            const percentage = videoDuration > 0 ? (uniqueSeconds / Math.floor(videoDuration)) * 100 : 0;
+
+            const result = await lessonProgressService.markLessonCompleted(
+                userId,
+                lesson.lesson_id,
+                uniqueSeconds,
+                percentage
+            );
             if (result.success) {
                 setLessonCompleted(true);
+                lessonCompletedRef.current = true; // Cập nhật ref
                 // Cập nhật set hoàn thành
                 setCompletedLessonsSet(prev => new Set([...prev, lesson.lesson_id]));
                 message.success("Bài học đã được đánh dấu hoàn thành!");
@@ -791,12 +991,15 @@ export default function LessonViewer() {
                         <div className={`w-full ${lesson.type === "QUIZ" ? "min-h-[calc(100vh-50px-60px)]" : "aspect-video max-h-[calc(100vh-50px-60px)]"} mx-auto ${lesson.type === "VIDEO" ? "bg-black" : "bg-white"} flex items-center justify-center`}>
                             {lesson.type === "VIDEO" ? (
                                 <div className="relative w-full h-full">
-                                    {/* YouTube Player Container */}
-                                    <div id="youtube-player" className="w-full h-full"></div>
-                                    {/* Fallback iframe nếu YouTube API chưa load */}
+                                    {/* YouTube Player Container - ID sẽ được set trong useEffect */}
+                                    <div
+                                        id={playerContainerIdRef.current || `youtube-player-${lesson.lesson_id || 'temp'}`}
+                                        className="w-full h-full"
+                                    ></div>
+                                    {/* Fallback iframe nếu YouTube API chưa load - nhưng chỉ hiện khi không có player */}
                                     {!youtubePlayer && embedSrc && (
                                         <iframe
-                                            src={embedSrc}
+                                            src={`${embedSrc}${embedSrc.includes('?') ? '&' : '?'}enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                                             title={lesson.title}
                                             className="w-full h-full absolute inset-0"
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -1135,7 +1338,12 @@ export default function LessonViewer() {
                                                     >
                                                         <div className="flex flex-col items-center gap-1 min-w-[24px] pt-1">
                                                             {isActive ? (
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#f05123] mb-1"></div>
+                                                                // Nếu là bài học hiện tại: hiển thị dấu tích nếu đã completed, nếu không thì hiển thị dấu chấm
+                                                                (completedLessonsSet.has(l.lesson_id) || lessonCompleted) ? (
+                                                                    <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                                                                ) : (
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#f05123] mb-1"></div>
+                                                                )
                                                             ) : (completedLessonsSet.has(l.lesson_id) || l.completed || l.isCompleted) ? (
                                                                 <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
                                                             ) : (
@@ -1217,6 +1425,18 @@ export default function LessonViewer() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* TA Assistant Button - Floating */}
+            {lesson && (
+                <TAAssistantButton
+                    lessonId={lesson.lesson_id}
+                    courseId={courseId}
+                    lessonType={lesson.type}
+                    lessonTitle={lesson.title}
+                    code={lesson.type === "CODE" ? code : null}
+                    testResults={lesson.type === "CODE" ? executionResults : null}
+                />
             )}
         </div>
     );

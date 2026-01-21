@@ -1,5 +1,6 @@
 package com.example.webdaylaptrinh.service;
 
+import com.example.webdaylaptrinh.dto.UserWithStatusDTO;
 import com.example.webdaylaptrinh.entity.Message;
 import com.example.webdaylaptrinh.entity.User;
 import com.example.webdaylaptrinh.enums.UserRole;
@@ -21,6 +22,7 @@ public class MessageService {
 
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
+    private final UserService userService;
 
     /**
      * Tạo tin nhắn mới
@@ -58,15 +60,16 @@ public class MessageService {
     }
 
     /**
-     * Lấy danh sách người đã chat với user hiện tại
+     * Lấy danh sách người đã chat với user hiện tại (với online status)
      */
-    public List<User> getConversationPartners(UUID userId) {
+    public List<UserWithStatusDTO> getConversationPartners(UUID userId) {
         List<Message> messages = messageRepository.findAllMessagesByUser(userId);
         return messages.stream()
                 .map(m -> m.getSender().getId().equals(userId) ? m.getReceiver() : m.getSender())
                 .collect(Collectors.toMap(User::getId, user -> user, (existing, replacement) -> existing))
                 .values()
                 .stream()
+                .map(user -> UserWithStatusDTO.fromUser(user, userService.isUserOnline(user)))
                 .collect(Collectors.toList());
     }
 
@@ -147,9 +150,9 @@ public class MessageService {
     }
 
     /**
-     * Lấy danh sách người dùng có thể chat (dựa trên role)
+     * Lấy danh sách người dùng có thể chat (dựa trên role) với online status
      */
-    public List<User> getAvailableChatUsers(UUID currentUserId) {
+    public List<UserWithStatusDTO> getAvailableChatUsers(UUID currentUserId) {
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
 
@@ -184,6 +187,7 @@ public class MessageService {
                     
                     return false;
                 })
+                .map(user -> UserWithStatusDTO.fromUser(user, userService.isUserOnline(user)))
                 .collect(Collectors.toList());
     }
 }

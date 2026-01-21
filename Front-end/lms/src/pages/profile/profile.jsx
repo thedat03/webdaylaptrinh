@@ -51,9 +51,13 @@ function Profile() {
                     setUserDetails(userRes.data);
                 }
 
-                const imgRes = await profileService.getProfileImage(id);
-                if (imgRes.success) {
-                    setProfileImage(imgRes.data);
+                try {
+                    const imgRes = await profileService.getProfileImage(id);
+                    if (imgRes.success && imgRes.data) {
+                        setProfileImage(imgRes.data);
+                    }
+                } catch (error) {
+                    // Không log error cho profile image (404 là bình thường)
                 }
             } finally {
                 setLoadingImage(false);

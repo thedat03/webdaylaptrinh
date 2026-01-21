@@ -4,6 +4,7 @@ import com.example.webdaylaptrinh.entity.TAReminder;
 import com.example.webdaylaptrinh.entity.TAReminder.ReminderStatus;
 import com.example.webdaylaptrinh.entity.TAReminder.ReminderType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -37,4 +38,8 @@ public interface TAReminderRepository extends JpaRepository<TAReminder, UUID> {
     // Lấy nhắc nhở theo trạng thái
     @Query("SELECT tr FROM TAReminder tr WHERE tr.status = :status ORDER BY tr.createdAt DESC")
     List<TAReminder> findByStatus(@Param("status") ReminderStatus status);
+    
+    @Modifying
+    @Query("UPDATE TAReminder tr SET tr.lesson = NULL WHERE tr.lesson.lesson_id = :lessonId")
+    void setLessonNullByLessonId(@Param("lessonId") UUID lessonId);
 }

@@ -135,6 +135,7 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/direct-questions").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.GET, "/api/direct-questions/my-questions").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.POST, "/api/direct-questions/*/convert-to-comment").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
+                        .requestMatchers(HttpMethod.POST, "/api/direct-questions/*/mark-resolved").hasAnyRole("USER", "STUDENT", "TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.GET, "/api/direct-questions/ta/my-assigned").hasRole("TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.GET, "/api/direct-questions/pending").hasRole("TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.POST, "/api/direct-questions/*/answer").hasRole("TEACHING_ASSISTANT")

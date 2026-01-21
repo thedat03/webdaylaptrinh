@@ -105,7 +105,7 @@ function Navbar() {
                             }
                         }
                     } catch (error) {
-                        console.error("Error loading avatar:", error);
+                        // Không log error cho profile image (404 là bình thường)
                         const storedImage = localStorage.getItem("profileImage");
                         if (storedImage) {
                             setUserAvatar(storedImage);

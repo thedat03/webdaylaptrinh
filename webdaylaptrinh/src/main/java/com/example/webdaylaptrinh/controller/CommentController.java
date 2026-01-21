@@ -1,5 +1,6 @@
 package com.example.webdaylaptrinh.controller;
 
+import com.example.webdaylaptrinh.dto.CommentWithStatusDTO;
 import com.example.webdaylaptrinh.entity.Comment;
 import com.example.webdaylaptrinh.service.CommentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,12 +27,13 @@ public class CommentController {
 
     // Lấy tất cả comment đã duyệt của một lesson
     @GetMapping("/lesson/{lessonId}")
-    public ResponseEntity<List<Comment>> getCommentsByLesson(@PathVariable UUID lessonId) {
+    public ResponseEntity<List<CommentWithStatusDTO>> getCommentsByLesson(@PathVariable UUID lessonId) {
         try {
             List<Comment> comments = commentService.getApprovedCommentsByLesson(lessonId);
             // Sắp xếp lại theo thời gian tạo (mới nhất trước)
             comments.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
-            return ResponseEntity.ok(comments);
+            List<CommentWithStatusDTO> commentsDTO = commentService.convertCommentsToDTO(comments);
+            return ResponseEntity.ok(commentsDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -39,12 +41,13 @@ public class CommentController {
 
     // Lấy tất cả comment đã duyệt của một course
     @GetMapping("/course/{courseId}")
-    public ResponseEntity<List<Comment>> getCommentsByCourse(@PathVariable UUID courseId) {
+    public ResponseEntity<List<CommentWithStatusDTO>> getCommentsByCourse(@PathVariable UUID courseId) {
         try {
             List<Comment> comments = commentService.getApprovedCommentsByCourse(courseId);
             // Sắp xếp lại theo thời gian tạo (mới nhất trước)
             comments.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
-            return ResponseEntity.ok(comments);
+            List<CommentWithStatusDTO> commentsDTO = commentService.convertCommentsToDTO(comments);
+            return ResponseEntity.ok(commentsDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -52,12 +55,13 @@ public class CommentController {
 
     // Lấy tất cả comment đã duyệt của một exercise
     @GetMapping("/exercise/{exerciseId}")
-    public ResponseEntity<List<Comment>> getCommentsByExercise(@PathVariable UUID exerciseId) {
+    public ResponseEntity<List<CommentWithStatusDTO>> getCommentsByExercise(@PathVariable UUID exerciseId) {
         try {
             List<Comment> comments = commentService.getApprovedCommentsByExercise(exerciseId);
             // Sắp xếp lại theo thời gian tạo (mới nhất trước)
             comments.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
-            return ResponseEntity.ok(comments);
+            List<CommentWithStatusDTO> commentsDTO = commentService.convertCommentsToDTO(comments);
+            return ResponseEntity.ok(commentsDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -66,14 +70,15 @@ public class CommentController {
     // TA xem tất cả comment trong bài học
     @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
     @GetMapping("/lesson/{lessonId}/ta")
-    public ResponseEntity<List<Comment>> getCommentsByLessonForTA(@PathVariable UUID lessonId, Authentication authentication) {
+    public ResponseEntity<List<CommentWithStatusDTO>> getCommentsByLessonForTA(@PathVariable UUID lessonId, Authentication authentication) {
         try {
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             String email = userDetails.getUsername();
             UUID taId = getUserIdFromEmail(email);
             
             List<Comment> comments = commentService.getCommentsForTAByLesson(taId, lessonId);
-            return ResponseEntity.ok(comments);
+            List<CommentWithStatusDTO> commentsDTO = commentService.convertCommentsToDTO(comments);
+            return ResponseEntity.ok(commentsDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -82,14 +87,15 @@ public class CommentController {
     // TA xem tất cả comment trong khóa học
     @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
     @GetMapping("/course/{courseId}/ta")
-    public ResponseEntity<List<Comment>> getCommentsByCourseForTA(@PathVariable UUID courseId, Authentication authentication) {
+    public ResponseEntity<List<CommentWithStatusDTO>> getCommentsByCourseForTA(@PathVariable UUID courseId, Authentication authentication) {
         try {
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             String email = userDetails.getUsername();
             UUID taId = getUserIdFromEmail(email);
             
             List<Comment> comments = commentService.getCommentsForTA(taId, courseId);
-            return ResponseEntity.ok(comments);
+            List<CommentWithStatusDTO> commentsDTO = commentService.convertCommentsToDTO(comments);
+            return ResponseEntity.ok(commentsDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -98,14 +104,15 @@ public class CommentController {
     // TA xem tất cả comment chưa được trả lời
     @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
     @GetMapping("/unanswered")
-    public ResponseEntity<List<Comment>> getUnansweredComments(Authentication authentication) {
+    public ResponseEntity<List<CommentWithStatusDTO>> getUnansweredComments(Authentication authentication) {
         try {
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             String email = userDetails.getUsername();
             UUID taId = getUserIdFromEmail(email);
             
             List<Comment> comments = commentService.getUnansweredCommentsForTA(taId);
-            return ResponseEntity.ok(comments);
+            List<CommentWithStatusDTO> commentsDTO = commentService.convertCommentsToDTO(comments);
+            return ResponseEntity.ok(commentsDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -114,14 +121,15 @@ public class CommentController {
     // TA xem TẤT CẢ comment (cả đã trả lời và chưa trả lời) trong các khóa học được phân công
     @PreAuthorize("hasRole('TEACHING_ASSISTANT')")
     @GetMapping("/ta/all")
-    public ResponseEntity<List<Comment>> getAllCommentsForTA(Authentication authentication) {
+    public ResponseEntity<List<CommentWithStatusDTO>> getAllCommentsForTA(Authentication authentication) {
         try {
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
             String email = userDetails.getUsername();
             UUID taId = getUserIdFromEmail(email);
             
             List<Comment> comments = commentService.getAllCommentsForTA(taId);
-            return ResponseEntity.ok(comments);
+            List<CommentWithStatusDTO> commentsDTO = commentService.convertCommentsToDTO(comments);
+            return ResponseEntity.ok(commentsDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -208,10 +216,11 @@ public class CommentController {
 
     // Lấy reply của một comment
     @GetMapping("/{commentId}/replies")
-    public ResponseEntity<List<Comment>> getRepliesByComment(@PathVariable UUID commentId) {
+    public ResponseEntity<List<CommentWithStatusDTO>> getRepliesByComment(@PathVariable UUID commentId) {
         try {
             List<Comment> replies = commentService.getRepliesByCommentId(commentId);
-            return ResponseEntity.ok(replies);
+            List<CommentWithStatusDTO> repliesDTO = commentService.convertCommentsToDTO(replies);
+            return ResponseEntity.ok(repliesDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }

@@ -5,9 +5,13 @@ import com.example.webdaylaptrinh.dto.ModuleRequest;
 import com.example.webdaylaptrinh.entity.Course;
 import com.example.webdaylaptrinh.entity.CourseModule;
 import com.example.webdaylaptrinh.entity.Lesson;
+import com.example.webdaylaptrinh.repository.CommentRepository;
 import com.example.webdaylaptrinh.repository.CourseModuleRepository;
 import com.example.webdaylaptrinh.repository.CourseRepository;
+import com.example.webdaylaptrinh.repository.DirectQuestionRepository;
+import com.example.webdaylaptrinh.repository.LessonProgressRepository;
 import com.example.webdaylaptrinh.repository.LessonRepository;
+import com.example.webdaylaptrinh.repository.TAReminderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +26,10 @@ public class CurriculumService {
     private final CourseRepository courseRepository;
     private final CourseModuleRepository moduleRepository;
     private final LessonRepository lessonRepository;
+    private final LessonProgressRepository lessonProgressRepository;
+    private final CommentRepository commentRepository;
+    private final TAReminderRepository taReminderRepository;
+    private final DirectQuestionRepository directQuestionRepository;
     private final NotificationService notificationService;
 
     public List<CourseModule> getModules(UUID courseId) {
@@ -113,7 +121,28 @@ public class CurriculumService {
         return savedLesson;
     }
 
+    @Transactional
     public void deleteLesson(UUID lessonId) {
+        // Kiểm tra lesson có tồn tại không
+        Lesson lesson = lessonRepository.findById(lessonId).orElse(null);
+        if (lesson == null) {
+            return; // Lesson không tồn tại, không cần xóa
+        }
+        
+        // Xóa tất cả các bản ghi liên quan đến lesson trước
+        // 1. Xóa LessonProgress (nullable = false, phải xóa)
+        lessonProgressRepository.deleteByLessonId(lessonId);
+        
+        // 2. Xóa Comment liên quan đến lesson
+        commentRepository.deleteByLessonId(lessonId);
+        
+        // 3. Set null cho lesson trong TAReminder (nullable = true)
+        taReminderRepository.setLessonNullByLessonId(lessonId);
+        
+        // 4. Set null cho lesson trong DirectQuestion (nullable = true)
+        directQuestionRepository.setLessonNullByLessonId(lessonId);
+        
+        // Cuối cùng mới xóa lesson
         lessonRepository.deleteById(lessonId);
     }
 }

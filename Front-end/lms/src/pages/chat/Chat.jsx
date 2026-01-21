@@ -30,12 +30,23 @@ export default function Chat() {
         loadAvailableUsers();
         loadUnreadCount();
 
+        // Gửi heartbeat ngay khi vào trang
+        messageService.sendHeartbeat();
+
+        // Gửi heartbeat mỗi 30 giây để cập nhật online status
+        const heartbeatInterval = setInterval(() => {
+            messageService.sendHeartbeat();
+        }, 30000);
+
         // Refresh unread count every 30 seconds
         const interval = setInterval(() => {
             loadUnreadCount();
         }, 30000);
 
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            clearInterval(heartbeatInterval);
+        };
     }, [currentUser?.id, navigate]);
 
     useEffect(() => {
@@ -48,7 +59,16 @@ export default function Chat() {
                 refreshConversation(selectedUser.id);
             }, 2000);
 
-            return () => clearInterval(conversationInterval);
+            // Refresh conversations để cập nhật online status mỗi 10 giây
+            const statusInterval = setInterval(() => {
+                loadConversations();
+                loadAvailableUsers();
+            }, 10000);
+
+            return () => {
+                clearInterval(conversationInterval);
+                clearInterval(statusInterval);
+            };
         }
     }, [selectedUser]);
 
@@ -211,14 +231,10 @@ export default function Chat() {
 
     const handleSelectUser = (user) => {
         setSelectedUser(user);
-        // Nếu đang ở tab available users, chuyển về danh sách đã chat sau khi chọn
-        if (showAvailableUsers) {
-            setShowAvailableUsers(false);
-            // Refresh conversations để đảm bảo user mới được thêm vào danh sách
-            setTimeout(() => {
-                loadConversations();
-            }, 1000);
-        }
+        // Refresh conversations để đảm bảo user mới được thêm vào danh sách
+        setTimeout(() => {
+            loadConversations();
+        }, 1000);
     };
 
     const formatTime = (dateString) => {
@@ -240,6 +256,15 @@ export default function Chat() {
             month: "short",
             year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined
         });
+    };
+
+    const formatOfflineTime = (offlineMinutes) => {
+        if (!offlineMinutes) return "";
+        if (offlineMinutes < 60) return `Đã offline ${offlineMinutes} phút`;
+        const hours = Math.floor(offlineMinutes / 60);
+        if (hours < 24) return `Đã offline ${hours} giờ`;
+        const days = Math.floor(hours / 24);
+        return `Đã offline ${days} ngày`;
     };
 
     const getUserRoleBadge = (role) => {
@@ -372,9 +397,12 @@ export default function Chat() {
                                                                     {user.username?.charAt(0)?.toUpperCase() || "U"}
                                                                 </span>
                                                             )}
-                                                            {hasConversation && (
-                                                                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></span>
-                                                            )}
+                                                            {/* Online/Offline indicator */}
+                                                            <span 
+                                                                className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                                                                    user.isOnline ? "bg-green-500" : "bg-gray-400"
+                                                                }`}
+                                                            ></span>
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1">
@@ -428,6 +456,12 @@ export default function Chat() {
                                                                 {user.username?.charAt(0)?.toUpperCase() || "U"}
                                                             </span>
                                                         )}
+                                                        {/* Online/Offline indicator */}
+                                                        <span 
+                                                            className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                                                                user.isOnline ? "bg-green-500" : "bg-gray-400"
+                                                            }`}
+                                                        ></span>
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-1">
@@ -457,7 +491,7 @@ export default function Chat() {
                             {/* Chat header */}
                             <div className="p-4 border-b border-gray-200 bg-white">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center relative">
                                         {selectedUser.profileImage ? (
                                             <img
                                                 src={`data:image/jpeg;base64,${selectedUser.profileImage}`}
@@ -469,8 +503,14 @@ export default function Chat() {
                                                 {selectedUser.username?.charAt(0)?.toUpperCase() || "U"}
                                             </span>
                                         )}
+                                        {/* Online/Offline indicator */}
+                                        <span 
+                                            className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                                                selectedUser.isOnline ? "bg-green-500" : "bg-gray-400"
+                                            }`}
+                                        ></span>
                                     </div>
-                                    <div>
+                                    <div className="flex-1">
                                         <div className="flex items-center gap-2">
                                             <p className="font-semibold text-gray-900">
                                                 {selectedUser.username || "Người dùng"}
@@ -478,6 +518,11 @@ export default function Chat() {
                                             {getUserRoleBadge(selectedUser.role)}
                                         </div>
                                         <p className="text-xs text-gray-500">{selectedUser.email}</p>
+                                        {!selectedUser.isOnline && selectedUser.offlineMinutes && (
+                                            <p className="text-xs text-gray-400 mt-0.5">
+                                                {formatOfflineTime(selectedUser.offlineMinutes)}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
