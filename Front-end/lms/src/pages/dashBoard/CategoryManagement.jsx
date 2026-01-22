@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEdit, faTrash, faPlus, faBookOpen } from "@fortawesome/free-solid-svg-icons";
-import { message, Modal, Form, Input, InputNumber } from "antd";
+import { message, Modal, Form, Input, InputNumber, Upload } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
 import { categoryService } from "../../api/category.service";
+import { adminService } from "../../api/admin.service";
 import DeleteModal from "./DeleteModal";
 
 function CategoryManagement() {
@@ -11,6 +13,8 @@ function CategoryManagement() {
     const [categoryModal, setCategoryModal] = useState({ isOpen: false, mode: "add", categoryId: null });
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, category: null });
     const [form] = Form.useForm();
+    const [imageUploading, setImageUploading] = useState(false);
+    const [previewImage, setPreviewImage] = useState(null);
 
     useEffect(() => {
         fetchCategories();
@@ -37,20 +41,32 @@ function CategoryManagement() {
 
     const openAddCategoryModal = () => {
         form.resetFields();
+        setPreviewImage(null);
         setCategoryModal({ isOpen: true, mode: "add", categoryId: null });
     };
 
     const openEditCategoryModal = (category) => {
+        const imageUrl = category.image_url || "";
         form.setFieldsValue({
             name: category.name,
-            description: category.description || "",
+            image_url: imageUrl,
             displayOrder: category.displayOrder || 0,
         });
+        // Set preview image if exists
+        if (imageUrl) {
+            const fullUrl = imageUrl.startsWith("http") || imageUrl.startsWith("/api/") 
+                ? imageUrl 
+                : `/api/files/${imageUrl}`;
+            setPreviewImage(fullUrl);
+        } else {
+            setPreviewImage(null);
+        }
         setCategoryModal({ isOpen: true, mode: "edit", categoryId: category.category_id });
     };
 
     const closeCategoryModal = () => {
         form.resetFields();
+        setPreviewImage(null);
         setCategoryModal({ isOpen: false, mode: "add", categoryId: null });
     };
 
@@ -95,6 +111,23 @@ function CategoryManagement() {
 
     const handleDeleteSuccess = () => {
         fetchCategories();
+    };
+
+    const handleImageUpload = async (file) => {
+        setImageUploading(true);
+        try {
+            const res = await adminService.uploadImage(file);
+            if (res.success) {
+                form.setFieldsValue({ image_url: res.data.url });
+                message.success("Tải ảnh thành công");
+            } else {
+                message.error(res.error || "Tải ảnh thất bại");
+            }
+        } catch (error) {
+            message.error("Tải ảnh thất bại");
+        } finally {
+            setImageUploading(false);
+        }
     };
 
     return (
@@ -150,8 +183,16 @@ function CategoryManagement() {
                                                     Thứ tự: {category.displayOrder || 0}
                                                 </span>
                                             </div>
-                                            {category.description && (
-                                                <p className="text-gray-600 mb-2">{category.description}</p>
+                                            {category.image_url && (
+                                                <div className="mb-2">
+                                                    <img 
+                                                        src={category.image_url.startsWith("http") || category.image_url.startsWith("/api/") 
+                                                            ? category.image_url 
+                                                            : `/api/files/${category.image_url}`}
+                                                        alt={category.name}
+                                                        className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                                                    />
+                                                </div>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2 ml-6">
@@ -192,8 +233,78 @@ function CategoryManagement() {
                     >
                         <Input placeholder="Enter category name" />
                     </Form.Item>
-                    <Form.Item label="Description" name="description">
-                        <Input.TextArea rows={3} placeholder="Enter category description" />
+                    <Form.Item label="Ảnh danh mục" name="image_url">
+                        <div>
+                            <Upload
+                                customRequest={async ({ file, onSuccess, onError }) => {
+                                    setImageUploading(true);
+                                    try {
+                                        const res = await adminService.uploadImage(file);
+                                        if (res.success) {
+                                            form.setFieldsValue({ image_url: res.data.url });
+                                            setPreviewImage(res.data.url);
+                                            message.success("Tải ảnh thành công");
+                                            onSuccess?.(res.data, file);
+                                        } else {
+                                            message.error(res.error || "Tải ảnh thất bại");
+                                            onError?.(res.error);
+                                        }
+                                    } catch (error) {
+                                        message.error("Tải ảnh thất bại");
+                                        onError?.(error);
+                                    } finally {
+                                        setImageUploading(false);
+                                    }
+                                }}
+                                showUploadList={false}
+                                accept="image/*"
+                            >
+                                <button type="button" className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={imageUploading}>
+                                    <UploadOutlined /> {imageUploading ? "Đang tải..." : (previewImage ? "Tải lại ảnh" : "Upload ảnh")}
+                                </button>
+                            </Upload>
+                            {(previewImage || form.getFieldValue("image_url")) && (
+                                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div className="flex items-start gap-4">
+                                        <div className="relative">
+                                            <img 
+                                                src={previewImage || form.getFieldValue("image_url")}
+                                                alt="Preview"
+                                                className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300"
+                                                onError={(e) => {
+                                                    e.target.src = '/placeholder-image.png';
+                                                    message.error("Không thể tải ảnh preview");
+                                                }}
+                                            />
+                                            {imageUploading && (
+                                                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
+                                                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent"></div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-gray-700 mb-2">Ảnh preview:</p>
+                                            <p className="text-xs text-gray-500 mb-3 break-all">
+                                                {previewImage || form.getFieldValue("image_url")}
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        form.setFieldsValue({ image_url: "" });
+                                                        setPreviewImage(null);
+                                                        message.info("Đã xóa ảnh, vui lòng tải lại ảnh mới");
+                                                    }}
+                                                    className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                                                >
+                                                    Xóa ảnh
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </Form.Item>
                     <Form.Item label="Display Order" name="displayOrder" rules={[{ type: "number", min: 0 }]}>
                         <InputNumber className="w-full" placeholder="0" min={0} />

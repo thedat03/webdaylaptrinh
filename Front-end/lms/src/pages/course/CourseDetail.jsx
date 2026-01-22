@@ -13,7 +13,7 @@ import { authService } from "../../api/auth.service";
 import { examService } from "../../api/exam.service";
 import { codeExerciseService } from "../../api/codeExercise.service";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlay, faStar, faStarHalfAlt, faClipboardList, faCode } from "@fortawesome/free-solid-svg-icons";
+import { faPlay, faStar, faStarHalfAlt, faClipboardList, faCode, faQuestionCircle, faFileAlt, faPlayCircle, faTachometerAlt, faFilm, faClock, faDesktop } from "@fortawesome/free-solid-svg-icons";
 
 function CourseDetail() {
     const { id } = useParams();
@@ -43,6 +43,9 @@ function CourseDetail() {
     const [addingToCart, setAddingToCart] = useState(false);
     const [codeExercises, setCodeExercises] = useState([]);
     const [loadingCodeExercises, setLoadingCodeExercises] = useState(false);
+    const [newComment, setNewComment] = useState("");
+    const [newRating, setNewRating] = useState(0);
+    const [submittingComment, setSubmittingComment] = useState(false);
 
     const totalLessons = modules.reduce((sum, m) => sum + ((lessonsByModule[m.module_id] || []).length), 0);
     const totalDurationMinutes = useMemo(() => {
@@ -61,9 +64,10 @@ function CourseDetail() {
         if (minutes <= 0) return "Đang cập nhật";
         const hours = Math.floor(minutes / 60);
         const mins = minutes % 60;
-        if (hours && mins) return `${hours}h ${mins}m`;
-        if (hours) return `${hours}h`;
-        return `${mins} phút`;
+        // Format as "09 giờ 00 phút"
+        const hoursStr = String(hours).padStart(2, '0');
+        const minsStr = String(mins).padStart(2, '0');
+        return `${hoursStr} giờ ${minsStr} phút`;
     }, [totalDurationMinutes]);
     const firstLesson = useMemo(() => {
         for (const module of modules) {
@@ -253,6 +257,106 @@ function CourseDetail() {
         });
     };
 
+    const renderInteractiveStars = (rating, onRatingChange) => {
+        return (
+            <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                        key={star}
+                        type="button"
+                        onClick={() => onRatingChange(star)}
+                        className="transition-all duration-200 cursor-pointer hover:scale-110 transform"
+                    >
+                        <FontAwesomeIcon
+                            icon={faStar}
+                            className={`text-base ${star <= rating
+                                ? "text-yellow-400"
+                                : "text-gray-300"
+                                } hover:text-yellow-500`}
+                        />
+                    </button>
+                ))}
+            </div>
+        );
+    };
+
+    const handleSubmitComment = async (e) => {
+        e.preventDefault();
+        if (!newComment.trim()) {
+            message.warning("Vui lòng nhập nội dung bình luận");
+            return;
+        }
+
+        if (!userId) {
+            message.info("Vui lòng đăng nhập để bình luận");
+            navigate("/login");
+            return;
+        }
+
+        setSubmittingComment(true);
+        try {
+            const result = await commentService.createComment(
+                null,
+                id,
+                newComment,
+                newRating > 0 ? newRating : null,
+                null,
+                null
+            );
+            if (result.success) {
+                message.success("Bình luận đã được đăng");
+                setNewComment("");
+                setNewRating(0);
+                // Reload comments and ratings
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            } else {
+                message.error(result.error || "Không thể đăng bình luận");
+            }
+        } catch (error) {
+            console.error("Error creating comment:", error);
+            message.error("Lỗi khi đăng bình luận");
+        } finally {
+            setSubmittingComment(false);
+        }
+    };
+
+    // Helper function to get icon based on lesson type
+    const getLessonIcon = (lesson) => {
+        const type = (lesson.type || "").toUpperCase();
+        
+        // Check for QUIZ type
+        if (type === "QUIZ" || type.includes("QUIZ") || type.includes("QUESTION") || type.includes("EXAM")) {
+            return <FontAwesomeIcon icon={faQuestionCircle} className="text-gray-500 text-base" />;
+        }
+        
+        // Check for CODE type
+        if (type === "CODE" || type.includes("CODE") || type.includes("EXERCISE") || type.includes("PROGRAMMING") || type === "HOMEWORK") {
+            return <FontAwesomeIcon icon={faCode} className="text-gray-500 text-base" />;
+        }
+        
+        // Check for MATERIAL/DOCUMENT type
+        if (type === "MATERIAL" || type.includes("MATERIAL") || type.includes("DOCUMENT") || type.includes("FILE") || type.includes("PDF")) {
+            return <FontAwesomeIcon icon={faFileAlt} className="text-gray-500 text-base" />;
+        }
+        
+        // Default to video icon for VIDEO type or unknown types
+        return <FontAwesomeIcon icon={faPlayCircle} className="text-orange-500 text-base" />;
+    };
+
+    // Helper function to format lesson duration (MM:SS format)
+    const formatLessonDuration = (minutes) => {
+        const totalMinutes = Number(minutes) || 0;
+        if (totalMinutes <= 0) return "";
+        // Convert to total seconds first
+        const totalSeconds = Math.round(totalMinutes * 60);
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        // Format as MM:SS (e.g., 01:48, 23:57, 00:35)
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+
     const imageSrc = useMemo(() => {
         const p = course?.p_link || "";
         if (!p) return "";
@@ -378,12 +482,12 @@ function CourseDetail() {
         <div className="min-h-screen bg-white">
             <Navbar page="courses" />
 
-            <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="max-w-6xl mx-auto py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left: main content */}
-                <div className="lg:col-span-2 space-y-10">
+                <div className="lg:col-span-2 space-y-10 pl-0">
                     {/* Title */}
-                    <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">{course.course_name}</h1>
-                    <p className="text-gray-600 mb-6">{course.description || `Học ${course.course_name} cơ bản phù hợp cho người chưa từng học lập trình.`}</p>
+                    <h1 className="text-3xl md:text-4xl font-bold text-black mb-3 text-left pl-0">{course.course_name}</h1>
+                    <p className="text-base text-black mb-6 text-left pl-0">{course.description || `Học ${course.course_name} cơ bản phù hợp cho người chưa từng học lập trình.`}</p>
 
                     {/* Learning Outcomes */}
                     {(() => {
@@ -406,22 +510,22 @@ function CourseDetail() {
                             const rightColumn = parsedOutcomes.slice(midPoint);
 
                             return (
-                                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-                                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Bạn sẽ học được gì?</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <ul className="space-y-3 text-gray-700">
+                                <div className="bg-white mb-8 pl-0">
+                                    <h2 className="text-2xl font-bold text-black mb-6 text-left pl-0">Bạn sẽ học được gì?</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pl-0">
+                                        <ul className="space-y-3 list-none pl-0">
                                             {leftColumn.map((outcome, idx) => (
                                                 <li key={idx} className="flex gap-3 items-start">
                                                     <span className="text-red-600 font-bold text-lg flex-shrink-0 mt-0.5">✓</span>
-                                                    <span className="flex-1">{outcome}</span>
+                                                    <span className="text-black text-base font-normal">{outcome}</span>
                                                 </li>
                                             ))}
                                         </ul>
-                                        <ul className="space-y-3 text-gray-700">
+                                        <ul className="space-y-3 list-none pl-0">
                                             {rightColumn.map((outcome, idx) => (
                                                 <li key={idx + midPoint} className="flex gap-3 items-start">
                                                     <span className="text-red-600 font-bold text-lg flex-shrink-0 mt-0.5">✓</span>
-                                                    <span className="flex-1">{outcome}</span>
+                                                    <span className="text-black text-base font-normal">{outcome}</span>
                                                 </li>
                                             ))}
                                         </ul>
@@ -433,74 +537,72 @@ function CourseDetail() {
                     })()}
 
                     {/* Curriculum header */}
-                    <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-                        <div>
-                            <p className="text-xs uppercase tracking-[0.3em] text-orange-500 font-semibold">Lộ trình học tập</p>
-                            <h2 className="text-2xl font-bold text-gray-900">Nội dung khóa học</h2>
+                    <div className="mb-6 pl-0">
+                        <h2 className="text-2xl font-bold text-black mb-4 text-left pl-0">Nội dung khóa học</h2>
+                        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                            <div className="text-sm text-black">
+                                <span className="font-semibold">{modules.length} chương</span>
+                                <span className="mx-2">•</span>
+                                <span className="font-semibold">{totalLessons} bài học</span>
+                                <span className="mx-2">•</span>
+                                <span className="font-semibold">Thời lượng {formattedDuration}</span>
+                            </div>
+                            <button
+                                onClick={() => setExpanded(prev => {
+                                    const allOpen = Object.values(prev).every(Boolean);
+                                    const next = {};
+                                    modules.forEach(m => { next[m.module_id] = !allOpen; });
+                                    return next;
+                                })}
+                                className="text-sm font-semibold text-red-600 hover:text-red-700 transition"
+                            >
+                                {Object.values(expanded).every(Boolean) ? "Thu gọn tất cả" : "Mở rộng tất cả"}
+                            </button>
                         </div>
-                        <button
-                            onClick={() => setExpanded(prev => {
-                                const allOpen = Object.values(prev).every(Boolean);
-                                const next = {};
-                                modules.forEach(m => { next[m.module_id] = !allOpen; });
-                                return next;
-                            })}
-                            className="text-sm font-semibold text-orange-600 hover:text-orange-500 transition"
-                        >
-                            {Object.values(expanded).every(Boolean) ? "Thu gọn tất cả" : "Mở rộng tất cả"}
-                        </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mb-6 text-sm">
-                        <span className="px-3 py-1 rounded-full bg-orange-50 text-orange-600 font-medium">{modules.length} chương</span>
-                        <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 font-medium">{totalLessons} bài học</span>
-                        <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600">Thời lượng: {formattedDuration}</span>
                     </div>
 
                     {/* Curriculum list */}
-                    <div className="space-y-3">
+                    <div className="space-y-0">
                         {modules.map((m) => {
                             const isExpanded = expanded[m.module_id];
                             const lessonsCount = (lessonsByModule[m.module_id] || []).length;
                             return (
                                 <div
                                     key={m.module_id}
-                                    className="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]"
+                                    className="border border-gray-300 rounded bg-gray-50 mb-2 overflow-hidden"
                                 >
                                     <button
                                         onClick={() => setExpanded(prev => ({ ...prev, [m.module_id]: !prev[m.module_id] }))}
-                                        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition"
+                                        className="w-full flex items-center justify-between px-4 py-4 text-left hover:bg-gray-100 transition"
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-lg font-semibold text-gray-600">
-                                                {isExpanded ? "−" : "+"}
-                                            </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-lg font-bold text-red-600">{isExpanded ? "—" : "+"}</span>
                                             <div>
-                                                <p className="text-base font-semibold text-gray-900">{m.position}. {m.title}</p>
-                                                <p className="text-sm text-gray-500 mt-0.5">Nội dung chi tiết từng bài học</p>
+                                                <p className="text-base font-bold text-black">{m.position}. {m.title}</p>
                                             </div>
                                         </div>
-                                        <span className="text-sm font-medium text-gray-600">{lessonsCount} bài học</span>
+                                        <span className="text-sm font-normal text-black">{lessonsCount} bài học</span>
                                     </button>
                                     {isExpanded && (
-                                        <ul className="divide-y border-t border-gray-100 bg-gray-50">
-                                            {(lessonsByModule[m.module_id] || []).map((l) => (
-                                                <li
-                                                    key={l.lesson_id}
-                                                    className="px-5 py-3 text-sm flex items-center justify-between hover:bg-white cursor-pointer transition"
-                                                    onClick={() => handleLessonClick(l)}
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="text-xs font-semibold text-gray-400">#{l.position}</span>
-                                                        <span className="text-gray-800">{l.title}</span>
-                                                        {l.type && (
-                                                            <span className="ml-2 text-gray-500 uppercase text-[10px] px-2 py-0.5 rounded-full bg-white border border-gray-200">
-                                                                {l.type}
-                                                            </span>
+                                        <ul className="divide-y divide-gray-200 bg-white list-none pl-0">
+                                            {(lessonsByModule[m.module_id] || []).map((l) => {
+                                                const duration = formatLessonDuration(l.durationMinutes || l.duration);
+                                                return (
+                                                    <li
+                                                        key={l.lesson_id}
+                                                        className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition"
+                                                        onClick={() => handleLessonClick(l)}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            {getLessonIcon(l)}
+                                                            <span className="text-sm font-normal text-black">{l.position}. {l.title}</span>
+                                                        </div>
+                                                        {duration && (
+                                                            <span className="text-sm font-normal text-black">{duration}</span>
                                                         )}
-                                                    </div>
-                                                    <span className="text-xs text-gray-400">Bài học</span>
-                                                </li>
-                                            ))}
+                                                    </li>
+                                                );
+                                            })}
                                         </ul>
                                     )}
                                 </div>
@@ -518,7 +620,7 @@ function CourseDetail() {
                                         navigate(`/code-exercise/${codeExercises[0].exercise_id}?courseId=${id}`);
                                     }
                                 }}
-                                className="w-full py-4 rounded-2xl border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 transition-all shadow-sm hover:shadow-md group"
+                                className="w-full py-4 rounded border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 transition-all shadow-sm hover:shadow-md group"
                             >
                                 <div className="flex items-center justify-between px-6">
                                     <div className="flex items-center gap-4">
@@ -542,7 +644,7 @@ function CourseDetail() {
 
                     {/* Exam Section - chỉ hiển thị khi đã đăng ký và có đề thi */}
                     {isEnrolled && hasPublishedExam && (
-                        <div className="mt-8 rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+                        <div className="mt-8 rounded border border-gray-200 overflow-hidden bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
                             <div className="px-5 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-200">
                                 <div className="flex items-center gap-3">
                                     <FontAwesomeIcon icon={faClipboardList} className="text-purple-600 text-xl" />
@@ -564,50 +666,74 @@ function CourseDetail() {
                         </div>
                     )}
 
-                    {/* Ratings Section */}
-                    <section className="bg-white rounded-2xl shadow p-6 border border-gray-100">
-                        <h2 className="text-2xl font-bold mb-6">Đánh giá khóa học</h2>
-                        <div className="grid gap-8 lg:grid-cols-[320px,1fr]">
-                            <div className="flex flex-col items-center justify-center text-center border-r border-gray-100 pr-4">
-                                <div className="text-5xl font-bold text-gray-900">
+                    {/* Ratings and Comments Section */}
+                    <section className="bg-white rounded shadow p-6 border border-gray-100" id="comments-section">
+                        <h2 className="text-2xl font-bold text-black mb-6 pl-0">Đánh giá</h2>
+                        <div className="flex flex-col md:flex-row gap-6 md:gap-8 mb-8">
+                            <div className="flex flex-col md:min-w-[180px]">
+                                <div className="text-5xl font-bold text-black mb-2">
                                     {ratingStats.average.toFixed(1)}
                                 </div>
-                                <div className="flex items-center gap-1 mt-2">
+                                <div className="flex items-center gap-1 mb-2">
                                     {renderStars(ratingStats.average)}
                                 </div>
-                                <p className="text-sm text-gray-500 mt-1">
+                                <p className="text-sm text-gray-600">
                                     ({ratingStats.total} đánh giá)
                                 </p>
                             </div>
-                            <div className="space-y-3">
+                            <div className="flex-1 space-y-2">
                                 {[5, 4, 3, 2, 1].map((star) => {
                                     const percent = ratingStats.total
                                         ? Math.round((ratingStats.distribution[star] / ratingStats.total) * 100)
                                         : 0;
                                     return (
-                                        <div key={star} className="flex items-center gap-4">
-                                            <span className="w-10 text-sm font-semibold text-gray-600">{star} sao</span>
+                                        <div key={star} className="flex items-center gap-3">
+                                            <span className="w-12 text-sm font-normal text-black">{star} sao</span>
                                             <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full bg-yellow-400 rounded-full transition-all"
                                                     style={{ width: `${percent}%` }}
                                                 ></div>
                                             </div>
-                                            <span className="w-12 text-sm text-gray-500 text-right">{percent}%</span>
+                                            <span className="w-10 text-sm text-gray-600 text-right">{percent}%</span>
                                         </div>
                                     );
                                 })}
                             </div>
                         </div>
-                    </section>
 
-                    {/* Comment Section */}
-                    <section className="bg-white rounded-2xl shadow p-6 border border-gray-100" id="comments-section">
-                        <CommentSection courseId={id} />
+                        {/* Simple Comment Form */}
+                        {authService.isUserAuthenticated() && (
+                            <form onSubmit={handleSubmitComment} className="mb-6 pb-6 border-b border-gray-200">
+                                <div className="flex items-start gap-3 mb-3">
+                                    {renderInteractiveStars(newRating, setNewRating)}
+                                </div>
+                                <div className="flex gap-3">
+                                    <textarea
+                                        value={newComment}
+                                        onChange={(e) => setNewComment(e.target.value)}
+                                        placeholder="Viết bình luận của bạn..."
+                                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none text-sm bg-white text-left"
+                                        rows="3"
+                                        required
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={submittingComment}
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {submittingComment ? "Đang đăng..." : "Đăng"}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {/* Comments List */}
+                        <CommentSection courseId={id} hideForm hideHeader />
                     </section>
 
                     {/* Certificate Section */}
-                    <section className="bg-gradient-to-r from-indigo-50 via-white to-sky-50 rounded-3xl p-8 border border-indigo-100 shadow-sm">
+                    <section className="bg-gradient-to-r from-indigo-50 via-white to-sky-50 rounded p-8 border border-indigo-100 shadow-sm">
                         <div className="grid md:grid-cols-2 gap-10 items-center">
                             <div>
                                 <p className="text-sm uppercase tracking-widest text-indigo-500 font-semibold mb-2">Chứng chỉ</p>
@@ -622,7 +748,7 @@ function CourseDetail() {
                                 </p>
                             </div>
                             <div className="flex justify-center">
-                                <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 max-w-md w-full">
+                                <div className="bg-white rounded shadow-lg p-6 border border-gray-100 max-w-md w-full">
                                     <div className="text-center mb-4">
                                         <p className="text-sm text-gray-500">CERTIFICATE OF COMPLETION</p>
                                         <h3 className="text-xl font-semibold text-gray-800 mt-1">{course.course_name}</h3>
@@ -639,7 +765,7 @@ function CourseDetail() {
                                 </div>
                             </div>
                         </div>
-                        <div className="mt-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-8">
+                        <div className="mt-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded border border-gray-200 p-8">
                             <div className="border border-gray-300 rounded-xl p-6 bg-white">
                                 <p className="text-center text-sm text-gray-400 tracking-[0.4em]">CERTIFICATE</p>
                                 <h3 className="text-center text-3xl font-serif text-gray-800 mt-2">GIẤY CHỨNG NHẬN</h3>
@@ -657,10 +783,10 @@ function CourseDetail() {
 
                 {/* Right: sidebar */}
                 <div>
-                    <div className="bg-white rounded-2xl shadow p-4 sticky top-6">
+                    <div className="bg-white rounded shadow p-4 sticky top-6">
                         {/* Video thumbnail with play button */}
                         <div
-                            className="relative rounded-xl overflow-hidden mb-4 h-64 cursor-pointer group"
+                            className="relative rounded overflow-hidden mb-4 aspect-video cursor-pointer group"
                             onClick={() => course.y_link && setShowVideoModal(true)}
                         >
                             {/* Background image */}
@@ -739,18 +865,30 @@ function CourseDetail() {
                         )}
 
                         {/* Course details */}
-                        <div className="space-y-3 text-sm text-gray-600">
+                        <div className="space-y-3 text-sm text-black">
                             <div className="flex items-center gap-3">
-                                <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
-                                <span>Trình độ cơ bản</span>
+                                <FontAwesomeIcon icon={faTachometerAlt} className="text-black text-base" />
+                                <span className="font-normal">Trình độ trung bình</span>
                             </div>
                             <div className="flex items-center gap-3">
-                                <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
-                                <span>Tổng số {totalLessons} bài học</span>
+                                <FontAwesomeIcon icon={faFilm} className="text-black text-base" />
+                                <span className="font-normal">Tổng số <span className="font-bold">{totalLessons}</span> bài học</span>
                             </div>
                             <div className="flex items-center gap-3">
-                                <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />
-                                <span>Học mọi lúc, mọi nơi</span>
+                                <FontAwesomeIcon icon={faClock} className="text-black text-base" />
+                                <span className="font-normal">Thời lượng {(() => {
+                                    const minutes = Number(totalDurationMinutes) || 0;
+                                    if (minutes <= 0) return "Đang cập nhật";
+                                    const hours = Math.floor(minutes / 60);
+                                    const mins = minutes % 60;
+                                    const hoursStr = String(hours).padStart(2, '0');
+                                    const minsStr = String(mins).padStart(2, '0');
+                                    return <><span className="font-bold">{hoursStr}</span> giờ <span className="font-bold">{minsStr}</span> phút</>;
+                                })()}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <FontAwesomeIcon icon={faDesktop} className="text-black text-base" />
+                                <span className="font-normal">Học mọi lúc, mọi nơi</span>
                             </div>
                         </div>
                     </div>

@@ -37,6 +37,7 @@ public class CategoryService {
         if (existing != null) {
             existing.setName(updatedCategory.getName());
             existing.setDescription(updatedCategory.getDescription());
+            existing.setImage_url(updatedCategory.getImage_url());
             existing.setDisplayOrder(updatedCategory.getDisplayOrder());
             return categoryRepository.save(existing);
         }

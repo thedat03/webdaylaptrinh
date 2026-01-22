@@ -10,6 +10,8 @@ import { lessonProgressService } from "../../api/lessonProgress.service";
 import { courseService } from "../../api/course.service";
 import { JUDGE0_LANGUAGE_MAP } from "../../constants/judge0Languages";
 import { parseMarkdownToHTML } from "../../utils/markdownParser";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPlayCircle, faQuestionCircle, faCode, faFileAlt, faClock } from "@fortawesome/free-solid-svg-icons";
 
 // --- Logic Helpers (Giữ nguyên) ---
 function toYouTubeEmbed(url) {
@@ -919,6 +921,29 @@ export default function LessonViewer() {
     const handleAddNote = () => message.info("Tính năng ghi chú đang phát triển");
     const handleGuide = () => message.info("Tài liệu hướng dẫn đang cập nhật");
 
+    // Helper function to get icon based on lesson type
+    const getLessonIcon = (lesson) => {
+        const type = (lesson.type || "").toUpperCase();
+
+        // Check for QUIZ type
+        if (type === "QUIZ" || type.includes("QUIZ") || type.includes("QUESTION") || type.includes("EXAM")) {
+            return <FontAwesomeIcon icon={faQuestionCircle} className="text-gray-500 text-sm" />;
+        }
+
+        // Check for CODE type
+        if (type === "CODE" || type.includes("CODE") || type.includes("EXERCISE") || type.includes("PROGRAMMING") || type === "HOMEWORK") {
+            return <FontAwesomeIcon icon={faCode} className="text-gray-500 text-sm" />;
+        }
+
+        // Check for MATERIAL/DOCUMENT type
+        if (type === "MATERIAL" || type.includes("MATERIAL") || type.includes("DOCUMENT") || type.includes("FILE") || type.includes("PDF")) {
+            return <FontAwesomeIcon icon={faFileAlt} className="text-gray-500 text-sm" />;
+        }
+
+        // Default to video icon for VIDEO type or unknown types
+        return <FontAwesomeIcon icon={faPlayCircle} className="text-orange-500 text-sm" />;
+    };
+
     // --- UI Render ---
     return (
         <div className="flex flex-col h-screen bg-[#f7f8fb] text-[#232b3b] overflow-hidden font-sans">
@@ -933,7 +958,7 @@ export default function LessonViewer() {
                                 navigate(-1);
                             }
                         }}
-                        className="flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition text-sm font-medium"
+                        className="flex items-center gap-2 px-3 h-8 rounded border border-gray-200 text-gray-700 hover:bg-gray-50 transition text-sm font-medium"
                         aria-label="Quay lại"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
@@ -944,20 +969,20 @@ export default function LessonViewer() {
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => navigate("/home")}
-                            className="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 shadow ring-1 ring-gray-100 overflow-hidden hover:ring-[#f05123]/60 transition"
+                            className="flex items-center justify-center w-10 h-10 rounded bg-gray-50 shadow ring-1 ring-gray-100 overflow-hidden hover:ring-[#f05123]/60 transition"
                             aria-label="Về trang chủ"
                         >
                             <img src={logo} alt="Logo" className="object-cover w-full h-full" />
                         </button>
                         <div className="text-gray-800">
-                            <p className="text-[11px] uppercase tracking-[0.3em] text-gray-400">LMS</p>
+
                             <h1 className="text-base font-semibold leading-tight">{courseTitle}</h1>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3 text-xs font-medium">
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                    <div className="flex items-center gap-2 px-3 h-8 rounded bg-gray-100 text-gray-700 border border-gray-200">
                         <div className="relative w-5 h-5">
                             <svg className="transform -rotate-90 w-5 h-5" viewBox="0 0 36 36">
                                 <path className="text-gray-300" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
@@ -966,13 +991,13 @@ export default function LessonViewer() {
                         </div>
                         <span className="tracking-wide">{completedLessons}/{totalLessons || 0} bài học</span>
                     </div>
-                    <button onClick={handleAddNote} className="flex items-center gap-1 px-3 py-1 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                    <button onClick={handleAddNote} className="flex items-center gap-1 px-3 h-8 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
                         <span className="text-lg">📝</span> Ghi chú
                     </button>
-                    <button onClick={handleGuide} className="flex items-center gap-1 px-3 py-1 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                    <button onClick={handleGuide} className="flex items-center gap-1 px-3 h-8 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
                         <span className="text-lg">❓</span> Hướng dẫn
                     </button>
-                    <button onClick={() => setIsDiscussionOpen(true)} className="flex items-center gap-1 px-3 py-1 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition">
+                    <button onClick={() => setIsDiscussionOpen(true)} className="flex items-center gap-1 px-3 h-8 rounded bg-blue-600 text-white hover:bg-blue-700 transition">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
@@ -1285,15 +1310,6 @@ export default function LessonViewer() {
                         <h3 className="font-bold text-gray-800">Nội dung khóa học</h3>
                     </div>
 
-                    {/* Fire Banner */}
-                    <div className="mx-4 mb-2 bg-orange-50 border border-orange-100 rounded-lg p-3 flex gap-3 items-center">
-                        <div className="w-8 h-8 rounded-full bg-[#f05123] text-white flex items-center justify-center text-lg">🔥</div>
-                        <div>
-                            <p className="text-xs font-bold text-[#f05123]">Bắt đầu chuỗi ngày học</p>
-                            <p className="text-[10px] text-gray-500">Hoàn thành 1 bài để bắt đầu!</p>
-                        </div>
-                    </div>
-
                     {/* Modules List */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         {modules.map((m) => {
@@ -1304,21 +1320,29 @@ export default function LessonViewer() {
                             const completedInModule = lessons.filter(l => l.completed || l.isCompleted || l.status === "COMPLETED").length;
 
                             return (
-                                <div key={m.module_id} className="border-b border-gray-100">
+                                <div key={m.module_id} className="border-b border-gray-200">
                                     <button
                                         onClick={() => setExpanded(prev => ({ ...prev, [m.module_id]: !prev[m.module_id] }))}
-                                        className="w-full px-4 py-3 bg-[#f7f8fa] hover:bg-gray-100 flex items-center justify-between transition group"
+                                        className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 flex items-center justify-between transition group border-l-2 border-transparent hover:border-gray-300"
                                     >
-                                        <div className="text-left">
-                                            <h4 className="font-semibold text-sm text-[#333]">{m.position}. {m.title}</h4>
-                                            <span className="text-[11px] text-gray-500">
-                                                {completedInModule}/{totalInModule} |{" "}
-                                                {formatMinutes(
-                                                    lessons.reduce((acc, l) => acc + (Number(l.durationMinutes) || Number(l.duration) || 0), 0)
-                                                )}
-                                            </span>
+                                        <div className="text-left flex-1">
+                                            <h4 className="font-bold text-sm text-[#333] mb-1">{m.position}. {m.title}</h4>
+                                            <div className="flex items-center gap-2 text-[11px] text-gray-600">
+                                                <span className="font-medium">{completedInModule}/{totalInModule}</span>
+                                                {(() => {
+                                                    const totalDuration = formatMinutes(
+                                                        lessons.reduce((acc, l) => acc + (Number(l.durationMinutes) || Number(l.duration) || 0), 0)
+                                                    );
+                                                    return totalDuration && totalDuration !== "—" ? (
+                                                        <>
+                                                            <FontAwesomeIcon icon={faClock} className="text-gray-500 text-[10px]" />
+                                                            <span>{totalDuration}</span>
+                                                        </>
+                                                    ) : null;
+                                                })()}
+                                            </div>
                                         </div>
-                                        <span className={`text-gray-500 transform transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+                                        <span className={`text-gray-500 transform transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`}>
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                                             </svg>
@@ -1333,34 +1357,44 @@ export default function LessonViewer() {
                                                     <div
                                                         key={l.lesson_id}
                                                         onClick={() => handleNavigateLesson(l)}
-                                                        className={`px-4 py-3 flex gap-3 cursor-pointer transition ${isActive ? "bg-[#f051231a]" : "hover:bg-gray-50"
+                                                        className={`px-4 py-3 flex gap-3 cursor-pointer transition border-l-2 ${isActive
+                                                            ? "bg-[#f051231a] border-[#f05123]"
+                                                            : "hover:bg-gray-50 border-transparent"
                                                             }`}
                                                     >
-                                                        <div className="flex flex-col items-center gap-1 min-w-[24px] pt-1">
-                                                            {isActive ? (
-                                                                // Nếu là bài học hiện tại: hiển thị dấu tích nếu đã completed, nếu không thì hiển thị dấu chấm
-                                                                (completedLessonsSet.has(l.lesson_id) || lessonCompleted) ? (
-                                                                    <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                                                                ) : (
-                                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#f05123] mb-1"></div>
-                                                                )
-                                                            ) : (completedLessonsSet.has(l.lesson_id) || l.completed || l.isCompleted) ? (
-                                                                <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                                                            ) : (
-                                                                <div className="w-4 h-4 rounded-full border border-gray-300"></div>
-                                                            )}
+                                                        <div className="flex items-center gap-2 min-w-[20px]">
+                                                            {getLessonIcon(l)}
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <p className={`text-sm ${isActive ? "font-medium text-[#333]" : "text-gray-600"}`}>
-                                                                {m.position}.{idx + 1} {l.title}
-                                                            </p>
-                                                            <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-500">
-                                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>
-                                                                {getLessonDuration(l)}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <p className={`text-sm truncate ${isActive ? "font-semibold text-[#333]" : "text-gray-700"}`}>
+                                                                    {m.position}.{idx + 1} {l.title}
+                                                                </p>
+                                                                {isActive && (
+                                                                    (completedLessonsSet.has(l.lesson_id) || lessonCompleted) ? (
+                                                                        <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+                                                                        </svg>
+                                                                    ) : (
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-[#f05123] flex-shrink-0"></div>
+                                                                    )
+                                                                )}
+                                                                {!isActive && (completedLessonsSet.has(l.lesson_id) || l.completed || l.isCompleted) && (
+                                                                    <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+                                                                    </svg>
+                                                                )}
                                                             </div>
+                                                            {(() => {
+                                                                const duration = getLessonDuration(l);
+                                                                return duration && duration !== "—" ? (
+                                                                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-gray-500">
+                                                                        <FontAwesomeIcon icon={faClock} className="text-gray-500 text-[10px]" />
+                                                                        <span>{duration}</span>
+                                                                    </div>
+                                                                ) : null;
+                                                            })()}
                                                         </div>
-                                                        {l.type === "CODE" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 h-fit font-mono">Code</span>}
-                                                        {l.type === "QUIZ" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 h-fit">Quiz</span>}
                                                     </div>
                                                 );
                                             })}
@@ -1429,14 +1463,16 @@ export default function LessonViewer() {
 
             {/* TA Assistant Button - Floating */}
             {lesson && (
-                <TAAssistantButton
-                    lessonId={lesson.lesson_id}
-                    courseId={courseId}
-                    lessonType={lesson.type}
-                    lessonTitle={lesson.title}
-                    code={lesson.type === "CODE" ? code : null}
-                    testResults={lesson.type === "CODE" ? executionResults : null}
-                />
+                <div style={{ zIndex: 9999 }}>
+                    <TAAssistantButton
+                        lessonId={lesson.lesson_id}
+                        courseId={courseId}
+                        lessonType={lesson.type}
+                        lessonTitle={lesson.title}
+                        code={lesson.type === "CODE" ? code : null}
+                        testResults={lesson.type === "CODE" ? executionResults : null}
+                    />
+                </div>
             )}
         </div>
     );

@@ -102,6 +102,60 @@ async function deleteUser(userId) {
     }
 }
 
+async function uploadImage(file) {
+    try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const { data } = await api.post("/api/files/upload", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error uploading image:", error);
+        return { success: false, error: error.response?.data?.error || "Unable to upload image" };
+    }
+}
+
+async function getCourseById(courseId) {
+    try {
+        const { data } = await api.get(`/api/courses/${courseId}`);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error getting course:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to get course" };
+    }
+}
+
+async function createCourse(courseData) {
+    try {
+        const { data } = await api.post("/api/courses", courseData);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error creating course:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to create course" };
+    }
+}
+
+async function updateCourse(courseId, courseData) {
+    try {
+        const { data } = await api.put(`/api/courses/${courseId}`, courseData);
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error updating course:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to update course" };
+    }
+}
+
+async function deleteCourse(courseId) {
+    try {
+        await api.delete(`/api/courses/${courseId}`);
+        return { success: true };
+    } catch (error) {
+        console.error("Error deleting course:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to delete course" };
+    }
+}
+
 export const adminService = {
     getAllAssignments,
     getAllTAs,
@@ -112,5 +166,10 @@ export const adminService = {
     getAllUsers,
     createUser,
     updateUser,
-    deleteUser
+    deleteUser,
+    uploadImage,
+    getCourseById,
+    createCourse,
+    updateCourse,
+    deleteCourse
 };

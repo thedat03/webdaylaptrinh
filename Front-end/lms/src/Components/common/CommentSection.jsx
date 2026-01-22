@@ -17,7 +17,7 @@ import { authService } from "../../api/auth.service";
 import { messageService } from "../../api/message.service";
 import { message } from "antd";
 
-function CommentSection({ lessonId, courseId, exerciseId, enableRating = true }) {
+function CommentSection({ lessonId, courseId, exerciseId, enableRating = true, hideForm = false, hideHeader = false }) {
     const [comments, setComments] = useState([]);
     const [loading, setLoading] = useState(false);
     const [newComment, setNewComment] = useState("");
@@ -916,17 +916,19 @@ function CommentSection({ lessonId, courseId, exerciseId, enableRating = true })
     };
 
     return (
-        <div className="w-full bg-gray-50 min-h-screen py-8">
+        <div className={`w-full ${hideForm && hideHeader ? '' : 'bg-gray-50 min-h-screen py-8'}`}>
             {/* Main Container - White Card */}
-            <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className={`${hideForm && hideHeader ? '' : 'max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'}`}>
                 {/* Header */}
-                <div className="px-8 pt-8 pb-6 border-b border-gray-100">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">{title}</h3>
-                    <p className="text-gray-600 text-sm">{subtitle}</p>
-                </div>
+                {!hideHeader && (
+                    <div className="px-8 pt-8 pb-6 border-b border-gray-100">
+                        <h3 className="text-2xl font-bold text-gray-900 mb-2">{title}</h3>
+                        <p className="text-gray-600 text-sm">{subtitle}</p>
+                    </div>
+                )}
 
                 {/* Comment form */}
-                {canComment ? (
+                {!hideForm && canComment ? (
                     <div className="px-8 py-6 border-b border-gray-100">
                         <form onSubmit={handleSubmitComment}>
                             {enableRating && (
@@ -956,7 +958,7 @@ function CommentSection({ lessonId, courseId, exerciseId, enableRating = true })
                             </div>
                         </form>
                     </div>
-                ) : (
+                ) : !hideForm ? (
                     <div className="px-8 py-6 border-b border-gray-100">
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                             <p className="text-amber-800 text-sm">
@@ -964,7 +966,7 @@ function CommentSection({ lessonId, courseId, exerciseId, enableRating = true })
                             </p>
                         </div>
                     </div>
-                )}
+                ) : null}
 
                 {/* Comments list */}
                 {loading ? (
@@ -973,7 +975,7 @@ function CommentSection({ lessonId, courseId, exerciseId, enableRating = true })
                         <p className="mt-4 text-gray-500 text-sm">Đang tải bình luận...</p>
                     </div>
                 ) : comments.length > 0 ? (
-                    <div className="px-8 py-6">
+                    <div className={hideForm && hideHeader ? "" : "px-8 py-6"}>
                         {visibleComments.map((comment, idx) => (
                             <div key={comment.commentId || comment.id || `comment-${idx}`} className="relative">
                                 {renderComment(comment, 0)}

@@ -183,7 +183,7 @@ function CourseModal({ isOpen, onClose, onSuccess, courseId = null, mode = "add"
             width="90%"
             style={{ maxWidth: isEditMode ? 900 : 600, top: 20 }}
             className="custom-modal"
-            destroyOnHidden
+            destroyOnClose
             styles={{ body: { maxHeight: "calc(100vh - 200px)", overflowY: "auto" } }}
         >
             {fetchingData ? (

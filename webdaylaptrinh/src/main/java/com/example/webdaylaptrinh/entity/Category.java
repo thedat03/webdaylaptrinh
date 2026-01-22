@@ -27,6 +27,8 @@ public class Category {
 
     private String description;
 
+    private String image_url; // Image URL for category icon/thumbnail
+
     private Integer displayOrder; // For sorting in sidebar
 
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL)

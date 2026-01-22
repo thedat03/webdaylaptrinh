@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { message } from "antd";
 import { taService } from "../../api/ta.service";
 import { messageService } from "../../api/message.service";
@@ -22,6 +22,27 @@ export default function TAAssistantButton({ lessonId, courseId, lessonType, less
     const [loading, setLoading] = useState(false);
     const [rating, setRating] = useState(0);
     const [showRating, setShowRating] = useState(null);
+    
+    // Drag and drop state
+    const [position, setPosition] = useState(null); // null means use default bottom-right
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const buttonRef = useRef(null);
+
+    // Load saved position from localStorage
+    useEffect(() => {
+        const savedPosition = localStorage.getItem('taAssistantButtonPosition');
+        if (savedPosition) {
+            try {
+                const { x, y } = JSON.parse(savedPosition);
+                if (x !== undefined && y !== undefined) {
+                    setPosition({ x, y });
+                }
+            } catch (e) {
+                console.error("Error loading saved position:", e);
+            }
+        }
+    }, []);
 
     // Check TA online status
     useEffect(() => {
@@ -44,6 +65,67 @@ export default function TAAssistantButton({ lessonId, courseId, lessonType, less
         const interval = setInterval(checkTAStatus, 30000);
         return () => clearInterval(interval);
     }, []);
+
+    // Handle drag start
+    const handleMouseDown = (e) => {
+        e.preventDefault();
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            const currentX = position ? position.x : rect.left;
+            const currentY = position ? position.y : rect.top;
+            
+            setDragOffset({
+                x: e.clientX - currentX,
+                y: e.clientY - currentY
+            });
+            setIsDragging(true);
+        }
+    };
+
+    // Handle drag
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (isDragging && buttonRef.current) {
+                const buttonWidth = buttonRef.current.offsetWidth;
+                const buttonHeight = buttonRef.current.offsetHeight;
+                
+                const newX = e.clientX - dragOffset.x;
+                const newY = e.clientY - dragOffset.y;
+                
+                // Constrain to viewport
+                const maxX = window.innerWidth - buttonWidth;
+                const maxY = window.innerHeight - buttonHeight;
+                
+                const constrainedX = Math.max(0, Math.min(newX, maxX));
+                const constrainedY = Math.max(0, Math.min(newY, maxY));
+                
+                const newPosition = {
+                    x: constrainedX,
+                    y: constrainedY
+                };
+                
+                setPosition(newPosition);
+                
+                // Save position to localStorage
+                localStorage.setItem('taAssistantButtonPosition', JSON.stringify(newPosition));
+            }
+        };
+
+        const handleMouseUp = () => {
+            if (isDragging) {
+                setIsDragging(false);
+            }
+        };
+
+        if (isDragging) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            return () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            };
+        }
+    }, [isDragging, dragOffset]);
 
     // Load my questions when panel opens
     useEffect(() => {
@@ -184,8 +266,25 @@ export default function TAAssistantButton({ lessonId, courseId, lessonType, less
         <>
             {/* Floating Button */}
             <button
-                onClick={() => setIsPanelOpen(true)}
-                className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center group"
+                ref={buttonRef}
+                onMouseDown={handleMouseDown}
+                onClick={(e) => {
+                    // Only open panel if not dragging
+                    if (!isDragging) {
+                        setIsPanelOpen(true);
+                    }
+                }}
+                style={{
+                    position: 'fixed',
+                    left: position ? `${position.x}px` : 'auto',
+                    right: position ? 'auto' : '24px',
+                    bottom: position ? 'auto' : '24px',
+                    top: position ? `${position.y}px` : 'auto',
+                    zIndex: 9999,
+                    cursor: isDragging ? 'grabbing' : 'grab',
+                    userSelect: 'none'
+                }}
+                className={`w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center group ${isDragging ? 'opacity-80' : ''}`}
                 aria-label="Hỏi trợ giảng"
             >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
