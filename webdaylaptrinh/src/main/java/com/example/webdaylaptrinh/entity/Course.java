@@ -20,7 +20,7 @@ import jakarta.persistence.OrderBy;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@JsonIgnoreProperties({"modules", "feedbacks", "questions", "hibernateLazyInitializer", "handler"})
+@JsonIgnoreProperties({"modules", "hibernateLazyInitializer", "handler"})
 public class Course {
 
     @Id
@@ -64,13 +64,6 @@ public class Course {
     @Column(nullable = false)
     private CourseStatus status = CourseStatus.PENDING; // Mặc định chờ duyệt
 
-    @OneToMany(mappedBy = "course", cascade = CascadeType.ALL)
-    @JsonIgnore
-    private List<Feedback> feedbacks;
-
-    @OneToMany(mappedBy = "course")
-    @JsonIgnore
-    private List<Questions> questions;
 
     @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("position ASC")

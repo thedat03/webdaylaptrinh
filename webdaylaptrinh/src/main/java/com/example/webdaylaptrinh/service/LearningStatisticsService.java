@@ -19,7 +19,6 @@ public class LearningStatisticsService {
     private final LearningRepository learningRepository;
     private final ProgressRepository progressRepository;
     private final CommentRepository commentRepository;
-    private final DiscussionRepository discussionRepository;
     private final CourseRepository courseRepository;
     private final CourseModuleRepository courseModuleRepository;
     private final LessonRepository lessonRepository;
@@ -93,14 +92,6 @@ public class LearningStatisticsService {
 
         // Thống kê thảo luận
         List<Comment> userComments = commentRepository.findByUser_IdOrderByCreatedAtDesc(userId);
-        // Lấy tất cả discussions và filter theo username
-        List<Discussion> allDiscussions = discussionRepository.findAll();
-        List<Discussion> userDiscussions = allDiscussions.stream()
-                .filter(d -> d.getUserName() != null && d.getUserName().equals(user.getUsername()))
-                .collect(Collectors.toList());
-
-        // Đếm số topics (discussions)
-        int totalTopics = userDiscussions.size();
 
         // Đếm số comments
         int totalComments = userComments.size();
@@ -115,13 +106,13 @@ public class LearningStatisticsService {
 
         LearningStatisticsDTO.DiscussionStats discussionStats = 
             new LearningStatisticsDTO.DiscussionStats();
-        discussionStats.setTotalTopics(totalTopics);
+        discussionStats.setTotalTopics(0); // Không còn Discussion, set = 0
         discussionStats.setTotalComments(totalComments);
         discussionStats.setTotalRatings(totalRatings);
         discussionStats.setTotalLikes(totalLikes);
 
         // Tạo activity heatmap (30 ngày gần nhất)
-        Map<String, Integer> activityHeatmap = generateActivityHeatmap(userId, userComments, userDiscussions);
+        Map<String, Integer> activityHeatmap = generateActivityHeatmap(userId, userComments);
 
         // Tạo DTO response
         LearningStatisticsDTO statistics = new LearningStatisticsDTO();
@@ -137,8 +128,7 @@ public class LearningStatisticsService {
     }
 
     private Map<String, Integer> generateActivityHeatmap(UUID userId, 
-                                                          List<Comment> comments, 
-                                                          List<Discussion> discussions) {
+                                                          List<Comment> comments) {
         Map<String, Integer> heatmap = new HashMap<>();
         
         // Khởi tạo 30 ngày gần nhất với giá trị 0
@@ -157,19 +147,6 @@ public class LearningStatisticsService {
                 
                 if (!commentDate.isBefore(thirtyDaysAgo) && !commentDate.isAfter(today)) {
                     String dateKey = commentDate.format(DateTimeFormatter.ISO_LOCAL_DATE);
-                    heatmap.put(dateKey, heatmap.getOrDefault(dateKey, 0) + 1);
-                }
-            }
-        }
-
-        // Đếm hoạt động từ discussions
-        for (Discussion discussion : discussions) {
-            if (discussion.getTime() != null) {
-                LocalDate discussionDate = discussion.getTime().toLocalDate();
-                LocalDate thirtyDaysAgo = today.minusDays(29);
-                
-                if (!discussionDate.isBefore(thirtyDaysAgo) && !discussionDate.isAfter(today)) {
-                    String dateKey = discussionDate.format(DateTimeFormatter.ISO_LOCAL_DATE);
                     heatmap.put(dateKey, heatmap.getOrDefault(dateKey, 0) + 1);
                 }
             }

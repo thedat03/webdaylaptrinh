@@ -401,7 +401,7 @@ function Assessment() {
                                     ))
                                 ) : (
                                     <div className="space-y-4">
-                                        {/* Code Editor Section - giống LessonViewer */}
+                                        {/* Code Editor Section */}
                                         <div className="border rounded-lg overflow-hidden">
                                             <div className="border-b border-gray-200 px-4 py-2 flex items-center gap-2 bg-gray-50">
                                                 <span className="text-xs font-mono">

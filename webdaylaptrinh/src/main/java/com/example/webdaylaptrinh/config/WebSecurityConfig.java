@@ -84,12 +84,9 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.GET, "/api/payments").hasAnyRole("ADMIN", "INSTRUCTOR")
 
-                        .requestMatchers("/api/assessments/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
-                        .requestMatchers("/api/feedbacks/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers("/api/learning/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers("/api/progress/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
-                        .requestMatchers("/api/questions/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
 
                         // Code execution endpoints - require authentication
                         .requestMatchers("/api/code/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")

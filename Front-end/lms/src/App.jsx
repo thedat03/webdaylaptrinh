@@ -19,12 +19,11 @@ import TAReminders from './pages/landing/TAReminders';
 import TAStudentDetail from './pages/landing/TAStudentDetail';
 import TAAssignments from './pages/dashBoard/TAAssignments';
 import DCourses from './pages/dashBoard/DCourses';
-import Assessment from './pages/assessment/Assessment';
 import ErrorPage from './pages/error/ErrorPage';
 import AddQuestions from './pages/dashBoard/AddQuestions';
 import Performance from './pages/profile/Performance';
 import Certificate from './pages/assessment/certificate';
-import Forum from './pages/course/forum';
+import Assessment from './pages/assessment/Assessment';
 import AdminDashboard from './pages/dashBoard/AdminDashboard';
 import LessonViewer from './pages/learning/LessonViewer';
 import CodeExerciseViewer from './pages/learning/CodeExerciseViewer';
@@ -60,7 +59,6 @@ function App() {
           <Route path='/courses' element={<Courses />} />
           <Route path='/courses/:id' element={<CourseDetail />} />
           <Route path='/course/:id' element={<Course />} />
-          <Route path='/discussion/:id' element={<Forum />} />
           <Route path='/certificate/:courseId' element={<Certificate />} />
           <Route path='/assessment/:id/:examId?' element={<Assessment />} />
           <Route path='/profile' element={<Profile />} />

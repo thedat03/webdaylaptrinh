@@ -1,14 +1,5 @@
 import api from "./api";
 
-async function getPerformanceData(userId) {
-    try {
-        const { data } = await api.get(`/api/assessments/performance/${userId}`);
-        return { success: true, data };
-    } catch (err) {
-        console.error("Error fetching performance data:", err);
-        return { success: false, error: err.response?.data?.message || "Unable to fetch performance data" };
-    }
-}
 
 async function getCertificate(courseId) {
     try {
@@ -44,7 +35,6 @@ async function downloadCertificate(courseId, userId) {
 }
 
 export const performanceService = {
-    getPerformanceData,
     getCertificate,
     downloadCertificate,
 };

@@ -6,7 +6,6 @@ import com.example.webdaylaptrinh.entity.Category;
 import com.example.webdaylaptrinh.entity.User;
 import com.example.webdaylaptrinh.entity.CourseModule;
 import com.example.webdaylaptrinh.entity.Lesson;
-import com.example.webdaylaptrinh.entity.Questions;
 import com.example.webdaylaptrinh.entity.Comment;
 import com.example.webdaylaptrinh.enums.CourseStatus;
 import com.example.webdaylaptrinh.repository.*;
@@ -31,10 +30,6 @@ public class CourseService {
     private final PaymentRepository paymentRepository;
     private final CommentRepository commentRepository;
     private final ProgressRepository progressRepository;
-    private final QuestionRepository questionRepository;
-    private final AssessmentRepository assessmentRepository;
-    private final DiscussionRepository discussionRepository;
-    private final FeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
     private final CourseModuleRepository moduleRepository;
     private final LessonRepository lessonRepository;
@@ -227,18 +222,6 @@ public class CourseService {
 
         // 5. Delete Progress records
         progressRepository.deleteByCourseId(id);
-
-        // 6. Delete Questions records
-        questionRepository.deleteByCourseId(id);
-
-        // 7. Delete Assessment records
-        assessmentRepository.deleteByCourseId(id);
-
-        // 8. Delete Discussion records
-        discussionRepository.deleteByCourseId(id);
-
-        // 9. Delete Feedback records (though cascade should handle this, being safe)
-        feedbackRepository.deleteByCourseId(id);
 
         // Finally, delete the course itself
         // Modules and Lessons will be deleted automatically due to cascade = CascadeType.ALL
