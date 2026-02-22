@@ -1,6 +1,7 @@
 package com.example.webdaylaptrinh.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -56,6 +57,7 @@ public class DirectQuestion {
     private DirectQuestionStatus status = DirectQuestionStatus.PENDING; // Trạng thái
 
     @Column(name = "ta_response", length = 2000)
+    @JsonProperty("taResponse")
     private String taResponse; // Phản hồi của TA
 
     @Column(name = "converted_to_comment")

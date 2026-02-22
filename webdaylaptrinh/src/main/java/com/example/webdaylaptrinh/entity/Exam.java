@@ -34,6 +34,10 @@ public class Exam {
 
     private boolean published = false;
 
+    @Builder.Default
+    @Column(nullable = false, columnDefinition = "INT DEFAULT 1")
+    private Integer maxAttempts = 1;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id")
     private Course course;

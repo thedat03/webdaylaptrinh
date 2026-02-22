@@ -114,7 +114,39 @@ public class DirectQuestionController {
             UUID studentId = getUserIdFromEmail(email);
 
             List<DirectQuestion> questions = directQuestionService.getStudentQuestions(studentId);
+            
+            // Log để debug
+            System.out.println("Total questions for student " + studentId + ": " + questions.size());
+            questions.forEach(q -> {
+                System.out.println("Question ID: " + q.getId() + 
+                    ", Status: " + q.getStatus() + 
+                    ", Has taResponse: " + (q.getTaResponse() != null && !q.getTaResponse().isEmpty()) +
+                    ", taResponse: " + (q.getTaResponse() != null ? q.getTaResponse().substring(0, Math.min(50, q.getTaResponse().length())) : "null"));
+            });
+            
             return ResponseEntity.ok(questions);
+        } catch (Exception e) {
+            System.err.println("Error getting my questions: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // Lấy các câu hỏi đã được trả lời (cho học viên xem trong chat)
+    @GetMapping("/my-answered-questions")
+    @PreAuthorize("hasAnyRole('USER', 'STUDENT', 'TEACHING_ASSISTANT')")
+    public ResponseEntity<List<DirectQuestion>> getMyAnsweredQuestions(Authentication authentication) {
+        try {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String email = userDetails.getUsername();
+            UUID studentId = getUserIdFromEmail(email);
+
+            List<DirectQuestion> questions = directQuestionService.getStudentQuestions(studentId);
+            // Lọc chỉ lấy các câu hỏi đã được trả lời
+            List<DirectQuestion> answeredQuestions = questions.stream()
+                    .filter(q -> q.getStatus() == DirectQuestion.DirectQuestionStatus.ANSWERED && q.getTaResponse() != null)
+                    .toList();
+            return ResponseEntity.ok(answeredQuestions);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }

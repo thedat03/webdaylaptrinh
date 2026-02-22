@@ -36,9 +36,31 @@ async function getAllPayments() {
     }
 }
 
+async function getInstructorRevenue() {
+    try {
+        const { data } = await api.get("/api/payments/instructor/revenue");
+        return { success: true, data };
+    } catch (error) {
+        console.error("Fetch instructor revenue error:", error);
+        return { success: false, error: "Không thể tải doanh thu" };
+    }
+}
+
+async function getInstructorRevenueDetail(params = {}) {
+    try {
+        const { data } = await api.get("/api/payments/instructor/revenue/details", { params });
+        return { success: true, data };
+    } catch (error) {
+        console.error("Fetch instructor revenue detail error:", error);
+        return { success: false, error: "Không thể tải chi tiết doanh thu" };
+    }
+}
+
 export const paymentService = {
     createPayment,
     getUserPayments,
     getAllPayments,
+    getInstructorRevenue,
+    getInstructorRevenueDetail,
 };
 

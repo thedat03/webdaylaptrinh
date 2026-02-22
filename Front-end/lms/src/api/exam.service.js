@@ -50,6 +50,16 @@ async function deleteQuestion(questionId) {
     }
 }
 
+async function deleteExam(examId) {
+    try {
+        await api.delete(`/api/exams/${examId}`);
+        return { success: true };
+    } catch (err) {
+        console.error("Error deleting exam", err);
+        return { success: false, error: err.response?.data?.message || "Không thể xóa đề thi" };
+    }
+}
+
 async function getOwnerExam(courseId) {
     try {
         const { data } = await api.get(`/api/courses/${courseId}/exams/owner`);
@@ -114,6 +124,14 @@ async function getSubmissionDetail(examId, submissionId) {
     }
 }
 
+async function updateSubmissionFeedback(examId, submissionId, payload) {
+    try {
+        const { data } = await api.put(`/api/exams/${examId}/submissions/${submissionId}/feedback`, payload);
+        return { success: true, data };
+    } catch (err) {
+        return { success: false, error: err.response?.data?.message || "Không thể gửi feedback" };
+    }
+}
 async function getMySubmission(examId) {
     try {
         const { data } = await api.get(`/api/exams/${examId}/my-submission`);
@@ -147,6 +165,7 @@ export const examService = {
     addQuestion,
     updateQuestion,
     deleteQuestion,
+    deleteExam,
     getOwnerExam,
     getAllExams,
     getPublishedExams,
@@ -154,6 +173,7 @@ export const examService = {
     submitExam,
     getSubmissions,
     getSubmissionDetail,
+    updateSubmissionFeedback,
     getMySubmission,
     getMySubmissions,
     runCodeQuestion,

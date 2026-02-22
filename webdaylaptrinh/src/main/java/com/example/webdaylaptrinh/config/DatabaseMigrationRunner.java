@@ -67,6 +67,45 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
                 log.info("✓ code_exercises table already exists");
             }
 
+            // Check and update feedback column in exam_submission_answers table
+            boolean hasFeedbackColumn = columnExists("exam_submission_answers", "feedback");
+            if (hasFeedbackColumn) {
+                try {
+                    String checkColumnType = "SELECT DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() " +
+                            "AND TABLE_NAME = 'exam_submission_answers' AND COLUMN_NAME = 'feedback'";
+                    
+                    var result = jdbcTemplate.queryForMap(checkColumnType);
+                    String dataType = (String) result.get("DATA_TYPE");
+                    String columnType = (String) result.get("COLUMN_TYPE");
+                    
+                    log.info("Current feedback column: DATA_TYPE={}, COLUMN_TYPE={}", dataType, columnType);
+                    
+                    // If it's VARCHAR with length <= 2000, convert to TEXT
+                    if ("varchar".equalsIgnoreCase(dataType)) {
+                        int currentLength = extractVarcharLength(columnType);
+                        if (currentLength <= 2000) {
+                            log.info("Updating feedback column from VARCHAR({}) to TEXT to support longer AI feedback...", currentLength);
+                            jdbcTemplate.execute("ALTER TABLE exam_submission_answers MODIFY COLUMN feedback TEXT");
+                            log.info("✓ Successfully updated feedback column to TEXT");
+                        } else {
+                            log.info("✓ feedback column is already large enough (VARCHAR({}))", currentLength);
+                        }
+                    } else if (!"text".equalsIgnoreCase(dataType) && !"longtext".equalsIgnoreCase(dataType)) {
+                        // If it's not TEXT or LONGTEXT, convert to TEXT
+                        log.info("Converting feedback column to TEXT...");
+                        jdbcTemplate.execute("ALTER TABLE exam_submission_answers MODIFY COLUMN feedback TEXT");
+                        log.info("✓ Successfully converted feedback column to TEXT");
+                    } else {
+                        log.info("✓ feedback column is already TEXT or LONGTEXT");
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not check/update feedback column: {}", e.getMessage());
+                }
+            } else {
+                log.info("feedback column does not exist yet, Hibernate will create it with TEXT type");
+            }
+
             log.info("Database schema check completed successfully!");
         } catch (Exception e) {
             log.error("Error during database migration: {}", e.getMessage(), e);
@@ -98,6 +137,20 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
             log.warn("Error checking table existence for {}: {}", tableName, e.getMessage());
             return false;
         }
+    }
+
+    private int extractVarcharLength(String columnType) {
+        try {
+            // Extract number from VARCHAR(n) or similar
+            int start = columnType.indexOf('(');
+            int end = columnType.indexOf(')');
+            if (start > 0 && end > start) {
+                return Integer.parseInt(columnType.substring(start + 1, end));
+            }
+        } catch (Exception e) {
+            // Ignore
+        }
+        return 0;
     }
 }
 

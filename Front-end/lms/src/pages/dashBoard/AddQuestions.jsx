@@ -4,6 +4,7 @@ import {
     Card,
     Form,
     Input,
+    InputNumber,
     Select,
     Button,
     Typography,
@@ -30,7 +31,8 @@ import {
     faList,
     faPaperPlane,
     faUsers,
-    faEye
+    faEye,
+    faSave
 } from '@fortawesome/free-solid-svg-icons';
 import { examService } from '../../api/exam.service';
 
@@ -50,6 +52,7 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
     const [form] = Form.useForm();
     const [editForm] = Form.useForm();
     const [examForm] = Form.useForm();
+    const [editExamForm] = Form.useForm();
 
     const [loading, setLoading] = useState(false);
     const [loadingExam, setLoadingExam] = useState(true);
@@ -60,11 +63,15 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
     const [isAddModalVisible, setIsAddModalVisible] = useState(false);
     const [isCreateExamModalVisible, setIsCreateExamModalVisible] = useState(false);
+    const [isEditExamModalVisible, setIsEditExamModalVisible] = useState(false);
+    const [editingExam, setEditingExam] = useState(null);
     const [activeTab, setActiveTab] = useState('questions');
     const [submissions, setSubmissions] = useState([]);
     const [loadingSubmissions, setLoadingSubmissions] = useState(false);
     const [selectedSubmission, setSelectedSubmission] = useState(null);
     const [isSubmissionDetailVisible, setIsSubmissionDetailVisible] = useState(false);
+    const [teacherFeedback, setTeacherFeedback] = useState('');
+    const [savingFeedback, setSavingFeedback] = useState(false);
 
     useEffect(() => {
         if (courseId) {
@@ -120,7 +127,8 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
         const payload = {
             title: values.title,
             description: values.description,
-            published: false
+            published: false,
+            maxAttempts: values.maxAttempts
         };
         const result = await examService.createExam(courseId, payload);
         setLoading(false);
@@ -144,7 +152,8 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
         const payload = {
             title: exam.title,
             description: exam.description,
-            published: checked
+            published: checked,
+            maxAttempts: exam.maxAttempts
         };
         const result = await examService.updateExam(examId, payload);
         if (result.success) {
@@ -225,7 +234,12 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
         setLoadingSubmissions(true);
         const result = await examService.getSubmissions(examId);
         if (result.success) {
-            setSubmissions(result.data || []);
+            const sorted = [...(result.data || [])].sort((a, b) => {
+                const nameA = (a.user?.username || a.user?.email || '').toLowerCase();
+                const nameB = (b.user?.username || b.user?.email || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'vi');
+            });
+            setSubmissions(sorted);
         } else {
             message.error(result.error || 'Không thể tải danh sách bài làm');
             setSubmissions([]);
@@ -238,9 +252,73 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
         const result = await examService.getSubmissionDetail(selectedExam.id, submissionId);
         if (result.success) {
             setSelectedSubmission(result.data);
+            setTeacherFeedback(result.data?.teacherFeedback || '');
             setIsSubmissionDetailVisible(true);
         } else {
             message.error(result.error || 'Không thể tải chi tiết bài làm');
+        }
+    };
+
+    const handleEditExam = (exam) => {
+        setEditingExam(exam);
+        editExamForm.setFieldsValue({
+            title: exam.title,
+            description: exam.description,
+            maxAttempts: exam.maxAttempts
+        });
+        setIsEditExamModalVisible(true);
+    };
+
+    const handleUpdateExam = async (values) => {
+        if (!editingExam) return;
+        setLoading(true);
+        const payload = {
+            title: values.title,
+            description: values.description,
+            published: editingExam.published,
+            maxAttempts: values.maxAttempts
+        };
+        const result = await examService.updateExam(editingExam.id, payload);
+        setLoading(false);
+        if (result.success) {
+            message.success('Đã cập nhật đề thi');
+            setIsEditExamModalVisible(false);
+            setEditingExam(null);
+            editExamForm.resetFields();
+            await fetchExams();
+        } else {
+            message.error(result.error || 'Không thể cập nhật đề thi');
+        }
+    };
+
+    const handleDeleteExam = async (examId) => {
+        const result = await examService.deleteExam(examId);
+        if (result.success) {
+            message.success('Đã xóa đề thi');
+            if (selectedExam?.id === examId) {
+                setSelectedExam(null);
+                setQuestions([]);
+            }
+            await fetchExams();
+        } else {
+            message.error(result.error || 'Không thể xóa đề thi');
+        }
+    };
+
+    const handleSaveTeacherFeedback = async () => {
+        if (!selectedExam || !selectedSubmission) return;
+        setSavingFeedback(true);
+        const result = await examService.updateSubmissionFeedback(
+            selectedExam.id,
+            selectedSubmission.id,
+            { feedback: teacherFeedback }
+        );
+        setSavingFeedback(false);
+        if (result.success) {
+            message.success('Đã gửi feedback cho học viên');
+            setSelectedSubmission(result.data);
+        } else {
+            message.error(result.error || 'Không thể gửi feedback');
         }
     };
 
@@ -553,12 +631,27 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 ml-4">
-                                        <span className="text-sm text-gray-600">Công bố:</span>
-                                        <Switch
-                                            checked={exam.published}
-                                            onChange={(checked) => handlePublishToggle(checked, exam.id)}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
+                                        <Space onClick={(e) => e.stopPropagation()}>
+                                            <Button type="text" size="small" onClick={() => handleEditExam(exam)}>
+                                                <FontAwesomeIcon icon={faEdit} />
+                                            </Button>
+                                            <Popconfirm
+                                                title="Xóa đề thi"
+                                                description="Bạn chắc chắn muốn xóa đề thi này?"
+                                                onConfirm={() => handleDeleteExam(exam.id)}
+                                                okText="Xóa"
+                                                cancelText="Hủy"
+                                            >
+                                                <Button type="text" size="small" danger>
+                                                    <FontAwesomeIcon icon={faTrash} />
+                                                </Button>
+                                            </Popconfirm>
+                                            <span className="text-sm text-gray-600">Công bố:</span>
+                                            <Switch
+                                                checked={exam.published}
+                                                onChange={(checked) => handlePublishToggle(checked, exam.id)}
+                                            />
+                                        </Space>
                                     </div>
                                 </div>
                             </div>
@@ -693,6 +786,13 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
                             <Form.Item name="description" label="Mô tả">
                                 <TextArea rows={3} />
                             </Form.Item>
+                            <Form.Item
+                                name="maxAttempts"
+                                label="Số lần làm tối đa"
+                                rules={[{ required: true, message: 'Nhập số lần làm tối đa' }]}
+                            >
+                                <InputNumber min={1} className="w-full" />
+                            </Form.Item>
                             <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                                 <Button onClick={() => {
                                     setIsCreateExamModalVisible(false);
@@ -702,6 +802,46 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
                                 </Button>
                                 <Button type="primary" htmlType="submit" loading={loading} icon={<FontAwesomeIcon icon={faPaperPlane} />}>
                                     Tạo đề thi
+                                </Button>
+                            </div>
+                        </Form>
+                    </Modal>
+
+                    <Modal
+                        title="Chỉnh sửa đề thi"
+                        open={isEditExamModalVisible}
+                        onCancel={() => {
+                            setIsEditExamModalVisible(false);
+                            setEditingExam(null);
+                            editExamForm.resetFields();
+                        }}
+                        footer={null}
+                        width={600}
+                    >
+                        <Form layout="vertical" form={editExamForm} onFinish={handleUpdateExam}>
+                            <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, message: 'Nhập tiêu đề' }]}>
+                                <Input placeholder="Ví dụ: Kiểm tra giữa khóa" />
+                            </Form.Item>
+                            <Form.Item name="description" label="Mô tả">
+                                <TextArea rows={3} />
+                            </Form.Item>
+                            <Form.Item
+                                name="maxAttempts"
+                                label="Số lần làm tối đa"
+                                rules={[{ required: true, message: 'Nhập số lần làm tối đa' }]}
+                            >
+                                <InputNumber min={1} className="w-full" />
+                            </Form.Item>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                                <Button onClick={() => {
+                                    setIsEditExamModalVisible(false);
+                                    setEditingExam(null);
+                                    editExamForm.resetFields();
+                                }}>
+                                    Hủy
+                                </Button>
+                                <Button type="primary" htmlType="submit" loading={loading} icon={<FontAwesomeIcon icon={faSave} />}>
+                                    Lưu thay đổi
                                 </Button>
                             </div>
                         </Form>
@@ -753,6 +893,30 @@ function AddQuestion({ courseId: propCourseId, onBack: propOnBack }) {
                                             : 'N/A'}
                                     </Descriptions.Item>
                                 </Descriptions>
+
+                                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                    <Title level={5} className="!mb-2">Feedback của giáo viên</Title>
+                                    <TextArea
+                                        rows={4}
+                                        value={teacherFeedback}
+                                        onChange={(e) => setTeacherFeedback(e.target.value)}
+                                        placeholder="Nhập nhận xét cho học viên (nếu muốn)"
+                                    />
+                                    <div className="flex justify-end mt-3">
+                                        <Button
+                                            type="primary"
+                                            loading={savingFeedback}
+                                            onClick={handleSaveTeacherFeedback}
+                                        >
+                                            Gửi feedback
+                                        </Button>
+                                    </div>
+                                    {selectedSubmission.teacherFeedbackAt && (
+                                        <Text className="text-xs text-gray-500 block mt-2">
+                                            Đã gửi: {new Date(selectedSubmission.teacherFeedbackAt).toLocaleString('vi-VN')}
+                                        </Text>
+                                    )}
+                                </div>
 
                                 <div className="mt-4">
                                     <Title level={5}>Chi tiết từng câu hỏi:</Title>

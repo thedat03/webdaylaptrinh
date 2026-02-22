@@ -136,6 +136,8 @@ export default function Notifications() {
                 return "📬";
             case "TA_REMINDER_CONFIRMATION":
                 return "✅";
+            case "EXAM_FEEDBACK":
+                return "📝";
             default:
                 return "🔔";
         }
@@ -301,4 +303,3 @@ export default function Notifications() {
         </div>
     );
 }
-

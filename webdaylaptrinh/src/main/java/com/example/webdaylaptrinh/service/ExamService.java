@@ -20,6 +20,7 @@ public class ExamService {
 
     private final ExamRepository examRepository;
     private final ExamQuestionRepository examQuestionRepository;
+    private final ExamSubmissionRepository examSubmissionRepository;
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
     private final LearningRepository learningRepository;
@@ -38,6 +39,9 @@ public class ExamService {
         assertOwner(courseId, creatorId);
         Course course = courseRepository.findById(courseId).orElseThrow();
         User creator = userRepository.findById(creatorId).orElseThrow();
+        if (request.getMaxAttempts() == null || request.getMaxAttempts() < 1) {
+            throw new RuntimeException("Vui lòng nhập số lần làm tối đa (>= 1)");
+        }
 
         Exam exam = Exam.builder()
                 .title(StringUtils.hasText(request.getTitle()) ? request.getTitle() : "Bài thi")
@@ -45,6 +49,7 @@ public class ExamService {
                 .course(course)
                 .createdBy(creator)
                 .published(request.isPublished())
+                .maxAttempts(request.getMaxAttempts())
                 .build();
 
         Exam saved = examRepository.save(exam);
@@ -59,10 +64,16 @@ public class ExamService {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("Exam not found"));
         assertOwner(exam.getCourse().getCourse_id(), userId);
+        if (request.getMaxAttempts() == null || request.getMaxAttempts() < 1) {
+            throw new RuntimeException("Vui lòng nhập số lần làm tối đa (>= 1)");
+        }
 
         exam.setTitle(request.getTitle());
         exam.setDescription(request.getDescription());
         boolean wasPublished = exam.isPublished();
+        if (request.getMaxAttempts() != null) {
+            exam.setMaxAttempts(request.getMaxAttempts());
+        }
         exam.setPublished(request.isPublished());
         Exam saved = examRepository.save(exam);
 
@@ -122,6 +133,20 @@ public class ExamService {
                 .orElseThrow(() -> new RuntimeException("Question not found"));
         assertOwner(question.getExam().getCourse().getCourse_id(), userId);
         examQuestionRepository.delete(question);
+    }
+
+    @Transactional
+    public void deleteExam(UUID examId, UUID userId) {
+        Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("Exam not found"));
+        assertOwner(exam.getCourse().getCourse_id(), userId);
+
+        long submissionCount = examSubmissionRepository.countByExam(exam);
+        if (submissionCount > 0) {
+            throw new RuntimeException("Không thể xóa đề thi đã có bài nộp");
+        }
+
+        examRepository.delete(exam);
     }
 
     @Transactional(readOnly = true)

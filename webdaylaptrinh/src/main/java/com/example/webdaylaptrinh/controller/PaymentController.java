@@ -2,18 +2,23 @@ package com.example.webdaylaptrinh.controller;
 
 import com.example.webdaylaptrinh.config.VnPayProperties;
 import com.example.webdaylaptrinh.dto.CartPaymentRequest;
+import com.example.webdaylaptrinh.dto.InstructorRevenueDetailDto;
+import com.example.webdaylaptrinh.dto.InstructorRevenueDto;
 import com.example.webdaylaptrinh.dto.PaymentAdminView;
 import com.example.webdaylaptrinh.dto.PaymentRequest;
 import com.example.webdaylaptrinh.dto.PaymentStatusResponse;
 import com.example.webdaylaptrinh.dto.PaymentUrlResponse;
 import com.example.webdaylaptrinh.entity.Payment;
 import com.example.webdaylaptrinh.entity.User;
+import com.example.webdaylaptrinh.security.UserPrincipal;
 import com.example.webdaylaptrinh.service.PaymentService;
 import com.example.webdaylaptrinh.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -68,6 +73,24 @@ public class PaymentController {
     @GetMapping
     public List<PaymentAdminView> getAllPayments() {
         return paymentService.getAllPayments();
+    }
+
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @GetMapping("/instructor/revenue")
+    public InstructorRevenueDto getInstructorRevenue(Authentication authentication) {
+        UUID userId = ((UserPrincipal) authentication.getPrincipal()).getId();
+        return paymentService.getInstructorRevenue(userId);
+    }
+
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @GetMapping("/instructor/revenue/details")
+    public InstructorRevenueDetailDto getInstructorRevenueDetail(
+            Authentication authentication,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam(defaultValue = "month") String groupBy) {
+        UUID userId = ((UserPrincipal) authentication.getPrincipal()).getId();
+        return paymentService.getInstructorRevenueDetail(userId, fromDate, toDate, groupBy);
     }
 
     @GetMapping("/user/{userId}")

@@ -4,6 +4,7 @@ import com.example.webdaylaptrinh.dto.ApiResponse;
 import com.example.webdaylaptrinh.dto.ExamQuestionRequest;
 import com.example.webdaylaptrinh.dto.ExamRequest;
 import com.example.webdaylaptrinh.dto.ExamSubmitRequest;
+import com.example.webdaylaptrinh.dto.SubmissionFeedbackRequest;
 import com.example.webdaylaptrinh.dto.TestCaseResult;
 import com.example.webdaylaptrinh.dto.CodeTestCase;
 import com.example.webdaylaptrinh.entity.Exam;
@@ -86,6 +87,15 @@ public class ExamController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @DeleteMapping("/exams/{examId}")
+    public ResponseEntity<ApiResponse<Boolean>> deleteExam(@PathVariable UUID examId,
+                                                           Authentication authentication) {
+        UUID userId = ((UserPrincipal) authentication.getPrincipal()).getId();
+        examService.deleteExam(examId, userId);
+        return ResponseEntity.ok(new ApiResponse<>("Đã xóa đề thi", true));
+    }
+
     @GetMapping("/courses/{courseId}/exams/published")
     public ResponseEntity<List<Exam>> getPublishedExams(@PathVariable UUID courseId) {
         try {
@@ -148,6 +158,19 @@ public class ExamController {
     @GetMapping("/exams/{examId}/submissions/{submissionId}")
     public ResponseEntity<ExamSubmission> getSubmissionDetail(@PathVariable UUID submissionId) {
         return ResponseEntity.ok(examSubmissionService.getSubmissionDetail(submissionId));
+    }
+
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @PutMapping("/exams/{examId}/submissions/{submissionId}/feedback")
+    public ResponseEntity<ExamSubmission> updateTeacherFeedback(@PathVariable UUID examId,
+                                                                @PathVariable UUID submissionId,
+                                                                @RequestBody SubmissionFeedbackRequest request,
+                                                                Authentication authentication) {
+        UUID userId = ((UserPrincipal) authentication.getPrincipal()).getId();
+        ExamSubmission updated = examSubmissionService.updateTeacherFeedback(
+                examId, submissionId, userId, request.getFeedback()
+        );
+        return ResponseEntity.ok(updated);
     }
 
     @GetMapping("/exams/{examId}/my-submission")

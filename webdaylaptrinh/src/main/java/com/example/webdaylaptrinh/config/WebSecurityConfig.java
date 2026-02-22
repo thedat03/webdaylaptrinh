@@ -83,6 +83,7 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers(HttpMethod.GET, "/api/payments").hasAnyRole("ADMIN", "INSTRUCTOR")
+                        .requestMatchers(HttpMethod.GET, "/api/payments/instructor/**").hasRole("INSTRUCTOR")
 
                         .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")
                         .requestMatchers("/api/learning/**").hasAnyRole("USER", "STUDENT", "ADMIN", "INSTRUCTOR", "TEACHING_ASSISTANT")

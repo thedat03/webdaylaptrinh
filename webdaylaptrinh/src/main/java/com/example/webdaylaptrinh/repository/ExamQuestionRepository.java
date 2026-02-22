@@ -8,6 +8,11 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ExamQuestionRepository extends JpaRepository<ExamQuestion, UUID> {
-    List<ExamQuestion> findByExam(Exam exam);
+    List<ExamQuestion> findByExamOrderByIdAsc(Exam exam);
+    
+    // Keep backward compatibility
+    default List<ExamQuestion> findByExam(Exam exam) {
+        return findByExamOrderByIdAsc(exam);
+    }
 }
 

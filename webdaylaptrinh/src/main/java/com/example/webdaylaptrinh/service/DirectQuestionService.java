@@ -24,6 +24,7 @@ public class DirectQuestionService {
     private final LessonRepository lessonRepository;
     private final TACourseAssignmentRepository taCourseAssignmentRepository;
     private final CommentRepository commentRepository;
+    private final NotificationService notificationService;
 
     /**
      * Học viên tạo câu hỏi "Hỏi trực tiếp"
@@ -108,7 +109,29 @@ public class DirectQuestionService {
         question.setStatus(DirectQuestionStatus.ANSWERED);
         question.setRespondedAt(LocalDateTime.now());
         
-        return directQuestionRepository.save(question);
+        DirectQuestion saved = directQuestionRepository.save(question);
+        
+        // Tạo thông báo cho học viên khi TA trả lời
+        try {
+            User student = question.getStudent();
+            User ta = question.getTa();
+            String courseName = question.getCourse() != null ? question.getCourse().getCourse_name() : "khóa học";
+            
+            notificationService.createNotification(
+                    student.getId(),
+                    "Trợ giảng đã trả lời câu hỏi của bạn",
+                    String.format("Trợ giảng %s đã trả lời câu hỏi của bạn trong %s. Hãy xem câu trả lời trong phần chat!", 
+                            ta.getUsername(), courseName),
+                    "TA_ANSWER",
+                    questionId,
+                    "DIRECT_QUESTION"
+            );
+        } catch (Exception e) {
+            // Log error nhưng không throw để không ảnh hưởng đến việc trả lời câu hỏi
+            System.err.println("Error creating notification for TA answer: " + e.getMessage());
+        }
+        
+        return saved;
     }
 
     /**

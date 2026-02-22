@@ -120,6 +120,8 @@ export default function NotificationModal({ isOpen, onClose }) {
                 return "🎉";
             case "COMPETITION":
                 return "🏆";
+            case "EXAM_FEEDBACK":
+                return "📝";
             default:
                 return "🔔";
         }
@@ -284,4 +286,3 @@ export default function NotificationModal({ isOpen, onClose }) {
         </div>
     );
 }
-

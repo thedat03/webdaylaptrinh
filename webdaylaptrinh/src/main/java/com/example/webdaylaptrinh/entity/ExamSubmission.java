@@ -40,6 +40,11 @@ public class ExamSubmission {
     private boolean passed = false;
     private Instant submittedAt = Instant.now();
 
+    @Column(columnDefinition = "TEXT")
+    private String teacherFeedback;
+
+    private Instant teacherFeedbackAt;
+
     @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ExamSubmissionAnswer> answers;
 }

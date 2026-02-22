@@ -7,5 +7,6 @@ public class ExamRequest {
     private String title;
     private String description;
     private boolean published;
+    private Integer maxAttempts;
 }
 

@@ -240,6 +240,17 @@ async function getMyQuestions() {
     }
 }
 
+// Student: Get my answered questions (for chat display)
+async function getMyAnsweredQuestions() {
+    try {
+        const { data } = await api.get("/api/direct-questions/my-answered-questions");
+        return { success: true, data };
+    } catch (error) {
+        console.error("Error getting answered questions:", error);
+        return { success: false, error: error.response?.data?.error || "Failed to get answered questions" };
+    }
+}
+
 // Student: Mark question as resolved with rating
 async function markAsResolved(questionId, rating) {
     try {
@@ -289,5 +300,6 @@ export const taService = {
     // Direct Questions - Student
     createDirectQuestion,
     getMyQuestions,
+    getMyAnsweredQuestions,
     markAsResolved
 };

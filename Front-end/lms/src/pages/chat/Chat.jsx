@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { message } from "antd";
 import { messageService } from "../../api/message.service";
 import { authService } from "../../api/auth.service";
+import { taService } from "../../api/ta.service";
 import Navbar from "../../Components/common/Navbar";
 
 
@@ -19,6 +20,9 @@ export default function Chat() {
     const [unreadCount, setUnreadCount] = useState(0);
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedQuery, setDebouncedQuery] = useState("");
+    const [taAnswers, setTaAnswers] = useState([]);
+    const [showQuestionsModal, setShowQuestionsModal] = useState(false);
+    const [myQuestions, setMyQuestions] = useState([]);
 
     useEffect(() => {
         if (!currentUser?.id) {
@@ -29,6 +33,7 @@ export default function Chat() {
         loadConversations();
         loadAvailableUsers();
         loadUnreadCount();
+        loadTaAnswers();
 
         // Gửi heartbeat ngay khi vào trang
         messageService.sendHeartbeat();
@@ -43,9 +48,15 @@ export default function Chat() {
             loadUnreadCount();
         }, 30000);
 
+        // Polling để kiểm tra câu trả lời mới từ TA mỗi 5 giây
+        const taAnswersInterval = setInterval(() => {
+            loadTaAnswers();
+        }, 5000);
+
         return () => {
             clearInterval(interval);
             clearInterval(heartbeatInterval);
+            clearInterval(taAnswersInterval);
         };
     }, [currentUser?.id, navigate]);
 
@@ -332,6 +343,88 @@ export default function Chat() {
         return 0;
     };
 
+    // Load TA answers
+    const loadTaAnswers = async () => {
+        try {
+            const result = await taService.getMyAnsweredQuestions();
+            if (result.success) {
+                setTaAnswers(result.data || []);
+            }
+        } catch (error) {
+            console.error("Error loading TA answers:", error);
+        }
+    };
+
+    // Load my questions
+    const loadMyQuestions = async () => {
+        try {
+            const result = await taService.getMyQuestions();
+            if (result.success) {
+                setMyQuestions(result.data || []);
+            }
+        } catch (error) {
+            console.error("Error loading my questions:", error);
+        }
+    };
+
+    // Merge messages with TA answers
+    const getMergedMessages = () => {
+        const regularMessages = messages.map(msg => ({
+            ...msg,
+            type: 'message',
+            timestamp: new Date(msg.createdAt).getTime()
+        }));
+
+        // Only show TA answers if chatting with a TA, or show all TA answers if no specific user selected
+        const shouldShowTaAnswers = !selectedUser || 
+            (selectedUser && selectedUser.role?.includes("TEACHING_ASSISTANT"));
+
+        if (!shouldShowTaAnswers) {
+            return regularMessages.sort((a, b) => a.timestamp - b.timestamp);
+        }
+
+        const taAnswerMessages = taAnswers.map(answer => {
+            // Find the TA user from available users or conversations
+            const taUser = availableUsers.find(u => 
+                u.role?.includes("TEACHING_ASSISTANT") && 
+                answer.ta?.id === u.id
+            ) || conversations.find(u => 
+                u.role?.includes("TEACHING_ASSISTANT") && 
+                answer.ta?.id === u.id
+            ) || (answer.ta ? {
+                id: answer.ta.id,
+                username: answer.ta.username || "Trợ giảng",
+                role: "ROLE_TEACHING_ASSISTANT",
+                email: answer.ta.email || "",
+                profileImage: answer.ta.profileImage
+            } : null);
+
+            if (!taUser) return null;
+
+            // If chatting with a specific TA, only show answers from that TA
+            if (selectedUser && selectedUser.id !== taUser.id) {
+                return null;
+            }
+
+            return {
+                messageId: `ta-answer-${answer.id}`,
+                type: 'ta_answer',
+                sender: taUser,
+                receiver: currentUser,
+                content: answer.taResponse,
+                question: answer.content,
+                questionId: answer.id,
+                isRead: false,
+                createdAt: answer.respondedAt || answer.createdAt,
+                timestamp: new Date(answer.respondedAt || answer.createdAt).getTime()
+            };
+        }).filter(Boolean);
+
+        // Merge and sort by timestamp
+        const allMessages = [...regularMessages, ...taAnswerMessages];
+        return allMessages.sort((a, b) => a.timestamp - b.timestamp);
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
             <Navbar />
@@ -539,14 +632,15 @@ export default function Chat() {
                                     <div className="flex items-center justify-center h-full">
                                         <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-200 border-t-blue-600"></div>
                                     </div>
-                                ) : messages.length === 0 ? (
+                                ) : getMergedMessages().length === 0 ? (
                                     <div className="flex items-center justify-center h-full text-gray-500">
                                         <p>Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {messages.map((msg) => {
+                                        {getMergedMessages().map((msg) => {
                                             const isOwn = msg.sender?.id === currentUser?.id;
+                                            const isTaAnswer = msg.type === 'ta_answer';
                                             return (
                                                 <div
                                                     key={msg.messageId}
@@ -555,16 +649,29 @@ export default function Chat() {
                                                     <div
                                                         className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isOwn
                                                             ? "bg-blue-600 text-white"
+                                                            : isTaAnswer
+                                                            ? "bg-green-50 text-gray-900 border-2 border-green-300"
                                                             : "bg-white text-gray-900 border border-gray-200"
                                                             }`}
                                                     >
                                                         {!isOwn && (
-                                                            <p className="text-xs font-semibold mb-1 text-gray-600">
+                                                            <p className={`text-xs font-semibold mb-1 ${isTaAnswer ? "text-green-700" : "text-gray-600"}`}>
                                                                 {msg.sender?.username || "Người dùng"}
+                                                                {isTaAnswer && (
+                                                                    <span className="ml-2 text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded">
+                                                                        Trợ giảng
+                                                                    </span>
+                                                                )}
                                                             </p>
                                                         )}
+                                                        {isTaAnswer && msg.question && (
+                                                            <div className="mb-2 p-2 bg-gray-100 rounded text-xs text-gray-600 border-l-2 border-gray-400">
+                                                                <p className="font-semibold mb-1">Câu hỏi của bạn:</p>
+                                                                <p className="whitespace-pre-wrap">{msg.question}</p>
+                                                            </div>
+                                                        )}
                                                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                                        <p className={`text-xs mt-1 ${isOwn ? "text-blue-100" : "text-gray-500"}`}>
+                                                        <p className={`text-xs mt-1 ${isOwn ? "text-blue-100" : isTaAnswer ? "text-green-600" : "text-gray-500"}`}>
                                                             {formatTime(msg.createdAt)}
                                                         </p>
                                                     </div>
@@ -578,6 +685,20 @@ export default function Chat() {
 
                             {/* Input */}
                             <div className="p-4 border-t border-gray-200 bg-white">
+                                <div className="flex gap-2 mb-2">
+                                    <button
+                                        onClick={() => {
+                                            setShowQuestionsModal(true);
+                                            loadMyQuestions();
+                                        }}
+                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm flex items-center gap-2"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Xem câu hỏi đã hỏi
+                                    </button>
+                                </div>
                                 <form onSubmit={handleSendMessage} className="flex gap-2">
                                     <input
                                         type="text"
@@ -618,6 +739,64 @@ export default function Chat() {
                     )}
                 </div>
             </div>
+
+            {/* Modal xem câu hỏi đã hỏi */}
+            {showQuestionsModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                            <h3 className="text-xl font-bold text-gray-800">Câu hỏi đã hỏi</h3>
+                            <button
+                                onClick={() => setShowQuestionsModal(false)}
+                                className="text-2xl text-gray-400 hover:text-gray-600"
+                            >
+                                &times;
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {myQuestions.length === 0 ? (
+                                <div className="text-center text-gray-500 py-8">
+                                    <p>Bạn chưa có câu hỏi nào</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {myQuestions.map((question) => (
+                                        <div
+                                            key={question.id}
+                                            className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3"
+                                        >
+                                            <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                                                <p className="font-semibold mb-2">Câu hỏi:</p>
+                                                <p>{question.content}</p>
+                                            </div>
+                                            
+                                            {question.taResponse && (
+                                                <div className="p-3 bg-green-50 rounded border-l-4 border-green-500">
+                                                    <p className="text-xs font-semibold text-green-700 mb-1">
+                                                        Phản hồi từ TA:
+                                                    </p>
+                                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                                                        {question.taResponse}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center justify-between text-xs text-gray-500">
+                                                <span>
+                                                    {formatTime(question.respondedAt || question.createdAt)}
+                                                    {question.status === "ANSWERED" && " • Đã trả lời"}
+                                                    {question.status === "PENDING" && " • Đang chờ"}
+                                                    {question.status === "ASSIGNED" && " • Đã phân công"}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

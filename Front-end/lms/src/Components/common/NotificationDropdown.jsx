@@ -213,6 +213,8 @@ export default function NotificationDropdown({ isOpen, onClose, buttonRef }) {
                 return "📬";
             case "TA_REMINDER_CONFIRMATION":
                 return "✅";
+            case "EXAM_FEEDBACK":
+                return "📝";
             default:
                 return "🔔";
         }
@@ -327,4 +329,3 @@ export default function NotificationDropdown({ isOpen, onClose, buttonRef }) {
         </div>
     );
 }
-

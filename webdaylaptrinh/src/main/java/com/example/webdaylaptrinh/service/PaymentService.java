@@ -2,6 +2,10 @@ package com.example.webdaylaptrinh.service;
 
 import com.example.webdaylaptrinh.config.VnPayProperties;
 import com.example.webdaylaptrinh.dto.CartPaymentRequest;
+import com.example.webdaylaptrinh.dto.InstructorCourseRevenueDto;
+import com.example.webdaylaptrinh.dto.InstructorRevenueDetailDto;
+import com.example.webdaylaptrinh.dto.InstructorRevenueDto;
+import com.example.webdaylaptrinh.dto.InstructorRevenuePointDto;
 import com.example.webdaylaptrinh.dto.PaymentAdminView;
 import com.example.webdaylaptrinh.dto.PaymentRequest;
 import com.example.webdaylaptrinh.dto.PaymentStatusResponse;
@@ -27,15 +31,21 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.UUID;
 
 @Service
@@ -200,6 +210,178 @@ public class PaymentService {
 
     public List<Payment> getUserPayments(User user) {
         return paymentRepository.findAllByUser(user);
+    }
+
+    public InstructorRevenueDto getInstructorRevenue(UUID instructorId) {
+        long revenueFromSingle = paymentRepository.sumRevenueByInstructorSingle(instructorId, PaymentStatus.PAID);
+        long revenueFromCart = paymentCourseRepository.sumRevenueByInstructor(instructorId, PaymentStatus.PAID);
+        long totalRevenue = revenueFromSingle + revenueFromCart;
+
+        long coursesSoldFromSingle = paymentRepository.countPaymentsByInstructorSingle(instructorId, PaymentStatus.PAID);
+        long coursesSoldFromCart = paymentCourseRepository.countCoursesSoldByInstructor(instructorId, PaymentStatus.PAID);
+        long totalCoursesSold = coursesSoldFromSingle + coursesSoldFromCart;
+
+        long paymentsFromSingle = coursesSoldFromSingle;
+        long paymentsFromCart = paymentCourseRepository.countPaymentsByInstructor(instructorId, PaymentStatus.PAID);
+        long totalPayments = paymentsFromSingle + paymentsFromCart;
+
+        return new InstructorRevenueDto(totalRevenue, totalCoursesSold, totalPayments);
+    }
+
+    public InstructorRevenueDetailDto getInstructorRevenueDetail(UUID instructorId) {
+        return getInstructorRevenueDetail(instructorId, null, null, "month");
+    }
+
+    public InstructorRevenueDetailDto getInstructorRevenueDetail(UUID instructorId, String fromDate, String toDate, String groupBy) {
+        LocalDate from = parseDate(fromDate);
+        LocalDate to = parseDate(toDate);
+        String normalizedGroupBy = "day".equalsIgnoreCase(groupBy) ? "day" : "month";
+
+        List<PaymentCourse> paidCourseItems = paymentCourseRepository.findPaidByInstructorId(instructorId, PaymentStatus.PAID);
+        List<Payment> paidSinglePayments = paymentRepository.findPaidSingleByInstructorId(instructorId, PaymentStatus.PAID);
+
+        Map<UUID, InstructorCourseRevenueDto> courseMap = new LinkedHashMap<>();
+        Map<YearMonth, Long> revenueByMonth = new HashMap<>();
+        Map<LocalDate, Long> revenueByDay = new HashMap<>();
+        Set<UUID> paymentIds = new HashSet<>();
+
+        Map<UUID, List<PaymentCourse>> itemsByPayment = new HashMap<>();
+        for (PaymentCourse pc : paidCourseItems) {
+            if (pc.getPayment() == null || pc.getCourse() == null) {
+                continue;
+            }
+            itemsByPayment.computeIfAbsent(pc.getPayment().getId(), k -> new ArrayList<>()).add(pc);
+        }
+
+        for (List<PaymentCourse> items : itemsByPayment.values()) {
+            Payment payment = items.get(0).getPayment();
+            if (payment == null) continue;
+
+            paymentIds.add(payment.getId());
+            long totalPrice = items.stream().mapToLong(pc -> pc.getCourse().getPrice()).sum();
+            long remaining = payment.getAmount();
+            LocalDateTime soldAt = getPaymentDate(payment);
+            if (!isInRange(soldAt, from, to)) {
+                continue;
+            }
+
+            for (int i = 0; i < items.size(); i++) {
+                PaymentCourse pc = items.get(i);
+                Course course = pc.getCourse();
+                if (course == null) continue;
+                long allocated;
+                if (i == items.size() - 1) {
+                    allocated = remaining;
+                } else if (totalPrice > 0) {
+                    allocated = Math.round((double) course.getPrice() / (double) totalPrice * payment.getAmount());
+                    remaining -= allocated;
+                } else {
+                    allocated = 0;
+                }
+
+                updateCourseRevenue(courseMap, course, allocated, soldAt);
+                accumulateByPeriod(revenueByMonth, revenueByDay, soldAt, allocated);
+            }
+        }
+
+        for (Payment payment : paidSinglePayments) {
+            Course course = payment.getCourse();
+            if (course == null) continue;
+
+            LocalDateTime soldAt = getPaymentDate(payment);
+            if (!isInRange(soldAt, from, to)) {
+                continue;
+            }
+
+            paymentIds.add(payment.getId());
+            long amount = payment.getAmount();
+            updateCourseRevenue(courseMap, course, amount, soldAt);
+            accumulateByPeriod(revenueByMonth, revenueByDay, soldAt, amount);
+        }
+
+        long totalRevenue = courseMap.values().stream().mapToLong(InstructorCourseRevenueDto::getTotalRevenue).sum();
+        long totalCoursesSold = courseMap.values().stream().mapToLong(InstructorCourseRevenueDto::getSoldCount).sum();
+        long totalPayments = paymentIds.size();
+
+        List<InstructorCourseRevenueDto> courses = courseMap.values().stream()
+                .sorted(Comparator.comparingLong(InstructorCourseRevenueDto::getTotalRevenue).reversed())
+                .toList();
+
+        List<InstructorRevenuePointDto> revenuePoints;
+        if ("day".equals(normalizedGroupBy)) {
+            revenuePoints = revenueByDay.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .map(e -> new InstructorRevenuePointDto(e.getKey().toString(), e.getValue()))
+                    .toList();
+        } else {
+            revenuePoints = revenueByMonth.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .map(e -> new InstructorRevenuePointDto(e.getKey().toString(), e.getValue()))
+                    .toList();
+        }
+
+        return new InstructorRevenueDetailDto(totalRevenue, totalCoursesSold, totalPayments, courses, revenuePoints);
+    }
+
+    private void updateCourseRevenue(Map<UUID, InstructorCourseRevenueDto> courseMap,
+                                     Course course,
+                                     long amount,
+                                     LocalDateTime soldAt) {
+        InstructorCourseRevenueDto existing = courseMap.get(course.getCourse_id());
+        if (existing == null) {
+            courseMap.put(
+                    course.getCourse_id(),
+                    new InstructorCourseRevenueDto(
+                            course.getCourse_id(),
+                            course.getCourse_name(),
+                            course.getPrice(),
+                            1,
+                            amount,
+                            soldAt
+                    )
+            );
+            return;
+        }
+
+        existing.setSoldCount(existing.getSoldCount() + 1);
+        existing.setTotalRevenue(existing.getTotalRevenue() + amount);
+        if (soldAt != null && (existing.getLastSoldAt() == null || soldAt.isAfter(existing.getLastSoldAt()))) {
+            existing.setLastSoldAt(soldAt);
+        }
+    }
+
+    private void accumulateByPeriod(Map<YearMonth, Long> revenueByMonth,
+                                    Map<LocalDate, Long> revenueByDay,
+                                    LocalDateTime soldAt,
+                                    long amount) {
+        if (soldAt == null) return;
+        YearMonth key = YearMonth.of(soldAt.getYear(), soldAt.getMonth());
+        revenueByMonth.put(key, revenueByMonth.getOrDefault(key, 0L) + amount);
+
+        LocalDate dayKey = soldAt.toLocalDate();
+        revenueByDay.put(dayKey, revenueByDay.getOrDefault(dayKey, 0L) + amount);
+    }
+
+    private LocalDateTime getPaymentDate(Payment payment) {
+        if (payment == null) return null;
+        return payment.getPayDate() != null ? payment.getPayDate() : payment.getCreatedAt();
+    }
+
+    private LocalDate parseDate(String value) {
+        if (!StringUtils.hasText(value)) return null;
+        try {
+            return LocalDate.parse(value);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private boolean isInRange(LocalDateTime soldAt, LocalDate from, LocalDate to) {
+        if (soldAt == null) return false;
+        LocalDate date = soldAt.toLocalDate();
+        if (from != null && date.isBefore(from)) return false;
+        if (to != null && date.isAfter(to)) return false;
+        return true;
     }
 
     public PaymentUrlResponse createCartPayment(CartPaymentRequest request, String clientIp) {

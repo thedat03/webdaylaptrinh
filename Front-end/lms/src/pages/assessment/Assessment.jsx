@@ -53,6 +53,9 @@ function Assessment() {
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [timeRemaining, setTimeRemaining] = useState(null); // in seconds
     const [examStatus] = useState('doing'); // 'doing', 'submitted', 'closed'
+    const [attemptsInfo, setAttemptsInfo] = useState({});
+    const [checkingExamId, setCheckingExamId] = useState(null);
+    const [exhaustedModal, setExhaustedModal] = useState({ open: false, attempts: 0, max: 0 });
     const [isDarkMode, setIsDarkMode] = useState(() => {
         // Load from localStorage or default to false
         const saved = localStorage.getItem('darkMode');
@@ -101,6 +104,40 @@ function Assessment() {
         };
         fetchExams();
     }, [courseId, examId]);
+
+    useEffect(() => {
+        if (!exams || exams.length === 0) return;
+        let cancelled = false;
+        const loadAttempts = async () => {
+            const entries = await Promise.all(
+                exams.map(async (exam) => {
+                    const max = Number(exam.maxAttempts) || 0;
+                    if (!exam.id) {
+                        return [exam.id, { attempts: 0, max, remaining: max, loaded: true }];
+                    }
+                    try {
+                        const result = await examService.getMySubmissions(exam.id);
+                        const attempts = result.success ? (result.data || []).length : 0;
+                        const remaining = max > 0 ? Math.max(0, max - attempts) : 0;
+                        return [exam.id, { attempts, max, remaining, loaded: true }];
+                    } catch {
+                        return [exam.id, { attempts: 0, max, remaining: max, loaded: true }];
+                    }
+                })
+            );
+
+            if (cancelled) return;
+            const next = {};
+            entries.forEach(([id, info]) => {
+                if (id) next[id] = info;
+            });
+            setAttemptsInfo(next);
+        };
+        loadAttempts();
+        return () => {
+            cancelled = true;
+        };
+    }, [exams]);
 
     const fetchMySubmission = async (examId) => {
         if (!examId) return;
@@ -167,6 +204,43 @@ function Assessment() {
         setCurrentQuestionIndex(0); // Reset to first question
         // Cập nhật URL
         navigate(`/assessment/${courseId}/${exam.id}`, { replace: true });
+    };
+
+    const handleStartExam = async (exam, hasQuestions) => {
+        if (!exam || !hasQuestions) return;
+        if (checkingExamId) return;
+
+        const cachedInfo = attemptsInfo[exam.id];
+        if (cachedInfo && cachedInfo.max > 0 && cachedInfo.remaining <= 0) {
+            setExhaustedModal({ open: true, attempts: cachedInfo.attempts, max: cachedInfo.max });
+            return;
+        }
+
+        setCheckingExamId(exam.id);
+        try {
+            const result = await examService.getMySubmissions(exam.id);
+            const attempts = result.success ? (result.data || []).length : 0;
+            const max = Number(exam.maxAttempts) || 0;
+            const remaining = max > 0 ? Math.max(0, max - attempts) : 0;
+            setAttemptsInfo(prev => ({
+                ...prev,
+                [exam.id]: { attempts, max, remaining, loaded: true }
+            }));
+
+            if (max < 1) {
+                message.error('Đề thi chưa thiết lập số lần làm tối đa. Vui lòng báo giảng viên.');
+                return;
+            }
+            if (remaining <= 0) {
+                setExhaustedModal({ open: true, attempts, max });
+                return;
+            }
+            selectExam(exam);
+        } catch (error) {
+            message.error('Không thể kiểm tra số lượt làm bài. Vui lòng thử lại.');
+        } finally {
+            setCheckingExamId(null);
+        }
     };
 
     const handleAnswerChange = (questionId, selectedOption) => {
@@ -596,8 +670,8 @@ function Assessment() {
                                             {/* Right: Action Buttons */}
                                             <div className="flex flex-col sm:flex-row gap-2 md:flex-col md:min-w-[140px]">
                                                 <button
-                                                    onClick={() => selectExam(exam)}
-                                                    disabled={!hasQuestions}
+                                                    onClick={() => handleStartExam(exam, hasQuestions)}
+                                                    disabled={!hasQuestions || checkingExamId === exam.id}
                                                     className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${hasQuestions
                                                         ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg'
                                                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -605,9 +679,17 @@ function Assessment() {
                                                     title={!hasQuestions ? "Chưa có câu hỏi" : "Vào làm bài"}
                                                 >
                                                     <FontAwesomeIcon icon={faPlay} />
-                                                    <span className="hidden sm:inline">Vào làm bài</span>
+                                                    <span className="hidden sm:inline">{checkingExamId === exam.id ? "Đang kiểm tra..." : "Vào làm bài"}</span>
                                                     <span className="sm:hidden">Làm bài</span>
                                                 </button>
+                                                <div className="text-xs text-gray-500 text-center">
+                                                    {(() => {
+                                                        const info = attemptsInfo[exam.id];
+                                                        if (!info || !info.loaded) return 'Đang tải lượt...';
+                                                        if (!info.max || info.max < 1) return 'Chưa thiết lập số lượt';
+                                                        return `Còn lại: ${info.remaining}/${info.max}`;
+                                                    })()}
+                                                </div>
 
 
                                             </div>
@@ -617,6 +699,28 @@ function Assessment() {
                             })}
                         </div>
                     )}
+
+                    <Modal
+                        title="Hết lượt làm bài"
+                        open={exhaustedModal.open}
+                        onCancel={() => setExhaustedModal({ open: false, attempts: 0, max: 0 })}
+                        footer={[
+                            <button
+                                key="close"
+                                onClick={() => setExhaustedModal({ open: false, attempts: 0, max: 0 })}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                            >
+                                Đóng
+                            </button>
+                        ]}
+                    >
+                        <div className="space-y-2">
+                            <Text>Bạn đã hết lượt làm bài cho đề thi này.</Text>
+                            <div className="text-sm text-gray-600">
+                                Đã dùng: <Text strong>{exhaustedModal.attempts}</Text> / <Text strong>{exhaustedModal.max}</Text> lượt
+                            </div>
+                        </div>
+                    </Modal>
                 </div>
             </div>
         );

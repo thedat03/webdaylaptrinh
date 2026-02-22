@@ -43,10 +43,15 @@ public class ExamSubmissionAnswer {
     @Column(length = 4000)
     private String autoResult; // serialized test results for review
 
-    @Column(length = 2000)
+    @Column(columnDefinition = "TEXT")
     private String feedback; // Feedback từ Gemini AI cho học viên
 
     private Double score = 0.0;
     private boolean passed = false;
+    
+    // Getter để frontend dễ dàng truy cập questionId
+    public UUID getQuestionId() {
+        return question != null ? question.getId() : null;
+    }
 }
 

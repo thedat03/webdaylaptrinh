@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +33,7 @@ public class ExamSubmissionService {
     private final ObjectMapper objectMapper;
     private final CodeExecutionService codeExecutionService;
     private final GeminiService geminiService;
+    private final NotificationService notificationService;
 
     @Transactional
     public ExamSubmission submit(UUID examId, UUID userId, ExamSubmitRequest request) {
@@ -39,6 +41,14 @@ public class ExamSubmissionService {
                 .orElseThrow(() -> new RuntimeException("Exam not found"));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (exam.getMaxAttempts() == null || exam.getMaxAttempts() < 1) {
+            throw new RuntimeException("Đề thi chưa thiết lập số lần làm tối đa");
+        }
+        long currentAttempts = examSubmissionRepository.countByExamAndUser(exam, user);
+        if (currentAttempts >= exam.getMaxAttempts()) {
+            throw new RuntimeException("Bạn đã vượt quá số lần làm bài cho phép (" + exam.getMaxAttempts() + ")");
+        }
 
         List<ExamQuestion> questions = examQuestionRepository.findByExam(exam);
         if (questions.isEmpty()) {
@@ -187,6 +197,45 @@ public class ExamSubmissionService {
         ExamSubmission saved = examSubmissionRepository.save(submission);
         answers.forEach(a -> a.setSubmission(saved));
         examSubmissionAnswerRepository.saveAll(answers);
+        return saved;
+    }
+
+    @Transactional
+    public ExamSubmission updateTeacherFeedback(UUID examId, UUID submissionId, UUID instructorId, String feedback) {
+        Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("Exam not found"));
+        if (exam.getCourse() == null || exam.getCourse().getUser() == null
+                || !exam.getCourse().getUser().getId().equals(instructorId)) {
+            throw new RuntimeException("Bạn không phải giáo viên của khóa học này");
+        }
+
+        ExamSubmission submission = examSubmissionRepository.findById(submissionId)
+                .orElseThrow(() -> new RuntimeException("Submission not found"));
+        if (submission.getExam() == null || !submission.getExam().getId().equals(examId)) {
+            throw new RuntimeException("Submission không thuộc đề thi này");
+        }
+
+        submission.setTeacherFeedback(feedback);
+        submission.setTeacherFeedbackAt(Instant.now());
+        ExamSubmission saved = examSubmissionRepository.save(submission);
+
+        try {
+            User student = saved.getUser();
+            Exam submissionExam = saved.getExam();
+            if (student != null && submissionExam != null) {
+                notificationService.createNotification(
+                        student.getId(),
+                        "Bạn có phản hồi mới từ giáo viên",
+                        String.format("Giáo viên đã gửi feedback cho bài làm \"%s\". Hãy vào xem nhé!", submissionExam.getTitle()),
+                        "EXAM_FEEDBACK",
+                        saved.getId(),
+                        "EXAM_SUBMISSION"
+                );
+            }
+        } catch (Exception e) {
+            log.error("Error creating exam feedback notification", e);
+        }
+
         return saved;
     }
 

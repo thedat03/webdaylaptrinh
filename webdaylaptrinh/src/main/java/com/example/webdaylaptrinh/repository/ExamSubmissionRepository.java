@@ -13,6 +13,10 @@ import java.util.UUID;
 public interface ExamSubmissionRepository extends JpaRepository<ExamSubmission, UUID> {
     List<ExamSubmission> findByExam(Exam exam);
     List<ExamSubmission> findByExamAndUser(Exam exam, User user);
+
+    long countByExamAndUser(Exam exam, User user);
+
+    long countByExam(Exam exam);
     
     @EntityGraph(attributePaths = {"answers", "answers.question"})
     List<ExamSubmission> findByExamAndUserOrderBySubmittedAtDesc(Exam exam, User user);
