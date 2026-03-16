@@ -122,17 +122,19 @@ Database (MySQL)
         ↓
 External Services (Judge0 API / Gemini API)
 # ⚙️ Installation
-Clone repository
-''' git clone https://github.com/thedat03/webdaylaptrinh.git ```
-Backend runs at
-''' http://localhost:8080 ```
+## Clone repository
+```bash git clone https://github.com/thedat03/webdaylaptrinh.git ```
+
+## Backend runs at
+```bash http://localhost:8080 ```
+
 Frontend
 cd frontend
 npm install
 npm start
-Frontend runs at
+## Frontend runs at
 
-``` http://localhost:5173 ```
+```bash http://localhost:5173 ```
 
 # 🗄 Database
 
