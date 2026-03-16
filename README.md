@@ -123,23 +123,18 @@ Database (MySQL)
 External Services (Judge0 API / Gemini API)
 # ⚙️ Installation
 Clone repository
-git clone https://github.com/yourusername/programming-learning-platform.git
-Backend
-cd backend
-mvn spring-boot:run
-
+''' git clone https://github.com/thedat03/webdaylaptrinh.git ```
 Backend runs at
-
-http://localhost:8080
+''' http://localhost:8080 ```
 Frontend
 cd frontend
 npm install
 npm start
-
 Frontend runs at
 
-http://localhost:3000
-🗄 Database
+``` http://localhost:5173 ```
+
+# 🗄 Database
 
 Import the SQL file into MySQL.
 
