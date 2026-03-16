@@ -128,9 +128,12 @@ External Services (Judge0 API / Gemini API)
 ## Backend runs at
 ```bash http://localhost:8080 ```
 
-Frontend
+## Frontend
+
 cd frontend
+
 npm install
+
 npm start
 ## Frontend runs at
 
