@@ -1,10 +1,10 @@
-🚀 Online Programming Learning Platform
+# 🚀 Online Programming Learning Platform
 
 A full-stack web platform designed to help learners study programming through courses, coding practice, and progress tracking.
 
 The system integrates an online coding environment, automatic code grading, and AI-powered feedback to enhance the programming learning experience.
 
-📌 Introduction
+# 📌 Introduction
 
 Programming has become an essential skill in the modern digital world. However, many learners face difficulties when theory and practice are separated.
 
@@ -18,7 +18,7 @@ Automatic grading using test cases
 
 Tracking learning progress
 
-🛠 Tech Stack
+# 🛠 Tech Stack
 Frontend
 
 ReactJS
@@ -47,8 +47,8 @@ Judge0 API – code execution
 
 Gemini API – AI feedback
 
-✨ Features
-👨‍🎓 Learner (Student)
+# ✨ Features
+## 👨‍🎓 Learner (Student)
 
 Register and login
 
@@ -68,7 +68,7 @@ View AI-generated feedback
 
 Track learning progress
 
-👨‍🏫 Teacher
+## 👨‍🏫 Teacher
 
 Create and manage programming courses
 
@@ -82,7 +82,7 @@ Define test cases for automatic grading
 
 Submit courses for admin approval
 
-🧑‍💻 Teaching Assistant
+## 🧑‍💻 Teaching Assistant
 
 Monitor student learning progress
 
@@ -92,7 +92,7 @@ Provide guidance and reminders
 
 Support teachers in managing courses
 
-👨‍💼 Admin
+## 👨‍💼 Admin
 
 Manage users and roles
 
@@ -102,13 +102,13 @@ Assign teaching assistants to courses
 
 Manage system operations
 
-👥 User Roles
+# 👥 User Roles
 Role	Description
 Learner	Participate in courses and practice programming
 Teacher	Create and manage courses
 Teaching Assistant	Support learners and monitor progress
 Admin	Manage users, courses, and system operations
-🏗 System Architecture
+# 🏗 System Architecture
 
 The system follows a Client–Server architecture using RESTful APIs.
 
@@ -121,7 +121,7 @@ Backend (Spring Boot)
 Database (MySQL)
         ↓
 External Services (Judge0 API / Gemini API)
-⚙️ Installation
+# ⚙️ Installation
 Clone repository
 git clone https://github.com/yourusername/programming-learning-platform.git
 Backend
@@ -161,7 +161,7 @@ Learning Progress
 
 Payments
 
-🔐 Security
+# 🔐 Security
 
 The system implements:
 
@@ -173,7 +173,7 @@ Secure API endpoints
 
 Input validation
 
-📈 Future Improvements
+# 📈 Future Improvements
 
 Possible future improvements:
 
@@ -187,11 +187,11 @@ More programming language support
 
 Performance optimization
 
-👨‍💻 Author
+# 👨‍💻 Author
 
 Nguyễn Thế Đạt
 Hanoi University of Science and Technology
 
-⭐ Project Purpose
+# ⭐ Project Purpose
 
 This project was developed as a graduation thesis to explore the design and implementation of an online programming learning platform.
